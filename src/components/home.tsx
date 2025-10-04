@@ -16,14 +16,23 @@ import MortgageTimeline from "./MortgageTimeline";
 import DocumentManager from "./DocumentManager";
 import MessagingSystem from "./MessagingSystem";
 import CostBreakdown from "./CostBreakdown";
+import type { MessagingUser } from "@/hooks/useMessaging";
 
 const HomePage = () => {
   // Mock user data - in a real app this would come from authentication
   const user = {
+    id: "00000000-0000-0000-0000-000000000002",
     name: "Carlos Rodriguez",
     role: "homebuyer", // Could be: 'homebuyer', 'agent', 'lender', 'processor'
     avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Carlos",
     notifications: 3,
+  };
+
+  const messagingUser: MessagingUser = {
+    id: user.id,
+    name: user.name,
+    role: user.role,
+    avatarUrl: user.avatar,
   };
 
   // Mock loan data
@@ -191,7 +200,7 @@ const HomePage = () => {
                     <CardTitle>Messaging System</CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <MessagingSystem />
+                    <MessagingSystem currentUser={messagingUser} />
                   </CardContent>
                 </Card>
               </TabsContent>
