@@ -1,199 +1,215 @@
-import React, { useState } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Badge } from '@/components/ui/badge';
-import { Progress } from '@/components/ui/progress';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Separator } from '@/components/ui/separator';
-import { 
-  FileText, 
-  Upload, 
-  Download, 
-  Eye, 
-  Shield, 
-  Lock,
-  Scan,
+import React, { useMemo, useRef, useState } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Separator } from "@/components/ui/separator";
+import {
   AlertTriangle,
   CheckCircle,
   Clock,
-  Trash2
-} from 'lucide-react';
+  Download,
+  Eye,
+  FileText,
+  Loader2,
+  Lock,
+  Scan,
+  Shield,
+  ShieldAlert,
+  Trash2,
+  Upload,
+} from "lucide-react";
+import { useDocuments } from "@/hooks/useDocuments";
+import type { DocumentRow } from "@/lib/supabase/documents";
+import type { DocumentStatus, VirusScanStatus } from "@/types/supabase";
 
-interface SecureDocument {
-  id: string;
-  name: string;
-  type: string;
-  status: 'pending' | 'uploaded' | 'scanning' | 'approved' | 'rejected';
-  uploadDate?: string;
-  size?: string;
-  encryptionStatus: 'encrypted' | 'processing' | 'failed';
-  accessLevel: 'public' | 'team' | 'restricted';
-  lastAccessed?: string;
-  accessCount: number;
-  virusScanStatus: 'pending' | 'clean' | 'infected' | 'failed';
-  retentionDate?: string;
-}
+const statusLabels: Record<DocumentStatus, string> = {
+  draft: "Draft",
+  pending_upload: "Pending Upload",
+  uploaded: "Uploaded",
+  pending_review: "Pending Review",
+  approved: "Approved",
+  rejected: "Rejected",
+  archived: "Archived",
+};
+
+const statusBadges: Record<DocumentStatus, string> = {
+  draft: "bg-slate-100 text-slate-700",
+  pending_upload: "bg-amber-100 text-amber-800",
+  uploaded: "bg-blue-100 text-blue-800",
+  pending_review: "bg-purple-100 text-purple-800",
+  approved: "bg-green-100 text-green-800",
+  rejected: "bg-red-100 text-red-800",
+  archived: "bg-zinc-200 text-zinc-700",
+};
+
+const virusScanLabels: Record<VirusScanStatus, string> = {
+  pending: "Pending",
+  queued: "Queued",
+  scanning: "Scanning",
+  clean: "Clean",
+  infected: "Infected",
+  failed: "Failed",
+};
+
+const virusScanBadgeClasses: Record<VirusScanStatus, string> = {
+  pending: "bg-gray-100 text-gray-700",
+  queued: "bg-slate-100 text-slate-700",
+  scanning: "bg-blue-100 text-blue-800",
+  clean: "bg-emerald-100 text-emerald-700",
+  infected: "bg-red-100 text-red-800",
+  failed: "bg-yellow-100 text-yellow-800",
+};
+
+const getMetadataValue = (document: DocumentRow, key: string) => {
+  const metadata = document.metadata as Record<string, unknown> | null;
+  if (metadata && typeof metadata === "object" && key in metadata) {
+    return metadata[key] as string | undefined;
+  }
+  return undefined;
+};
+
+const formatDate = (value?: string | null) => {
+  if (!value) {
+    return null;
+  }
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return null;
+  }
+  return date.toLocaleString();
+};
+
+const formatBytes = (size?: number | null) => {
+  if (!size) {
+    return null;
+  }
+  const megabytes = size / (1024 * 1024);
+  if (megabytes < 0.1) {
+    return `${(size / 1024).toFixed(1)} KB`;
+  }
+  return `${megabytes.toFixed(1)} MB`;
+};
 
 const SecureDocumentManager: React.FC = () => {
-  const [documents, setDocuments] = useState<SecureDocument[]>([
-    {
-      id: '1',
-      name: 'W-2 Tax Form 2023',
-      type: 'Tax Document',
-      status: 'approved',
-      uploadDate: '2024-01-15',
-      size: '2.3 MB',
-      encryptionStatus: 'encrypted',
-      accessLevel: 'restricted',
-      lastAccessed: '2024-01-15T10:30:00Z',
-      accessCount: 3,
-      virusScanStatus: 'clean',
-      retentionDate: '2031-01-15'
-    },
-    {
-      id: '2',
-      name: 'Bank Statement - December',
-      type: 'Financial',
-      status: 'scanning',
-      uploadDate: '2024-01-14',
-      size: '1.8 MB',
-      encryptionStatus: 'encrypted',
-      accessLevel: 'team',
-      lastAccessed: '2024-01-14T16:20:00Z',
-      accessCount: 1,
-      virusScanStatus: 'pending',
-      retentionDate: '2031-01-14'
-    },
-    {
-      id: '3',
-      name: 'Property Appraisal Report',
-      type: 'Property',
-      status: 'pending',
-      encryptionStatus: 'processing',
-      accessLevel: 'restricted',
-      accessCount: 0,
-      virusScanStatus: 'pending'
+  const [searchTerm, setSearchTerm] = useState("");
+  const [selectedDocument, setSelectedDocument] = useState<DocumentRow | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const {
+    documents,
+    isLoading,
+    uploadProgress,
+    uploadDocument,
+    deleteDocument,
+    getSignedUrlForAction,
+    refreshVirusScanStatus,
+    updateStatus,
+    reload,
+  } = useDocuments({ secureOnly: true });
+
+  const filteredDocuments = useMemo(() => {
+    if (!searchTerm.trim()) {
+      return documents;
     }
-  ]);
+    const lower = searchTerm.toLowerCase();
+    return documents.filter((doc) => {
+      const values = [
+        doc.display_name,
+        doc.file_name,
+        doc.uploaded_by_email ?? "",
+        getMetadataValue(doc, "type") ?? "",
+      ];
+      return values.some((value) => value.toLowerCase().includes(lower));
+    });
+  }, [documents, searchTerm]);
 
-  const [uploadProgress, setUploadProgress] = useState(0);
-  const [isUploading, setIsUploading] = useState(false);
-
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case 'approved':
-        return <CheckCircle className="h-4 w-4 text-green-500" />;
-      case 'scanning':
-        return <Scan className="h-4 w-4 text-blue-500 animate-spin" />;
-      case 'rejected':
-        return <AlertTriangle className="h-4 w-4 text-red-500" />;
-      default:
-        return <Clock className="h-4 w-4 text-gray-400" />;
-    }
-  };
-
-  const getStatusBadge = (status: string) => {
-    const variants = {
-      approved: 'bg-green-100 text-green-800',
-      scanning: 'bg-blue-100 text-blue-800',
-      rejected: 'bg-red-100 text-red-800',
-      pending: 'bg-gray-100 text-gray-800',
-      uploaded: 'bg-yellow-100 text-yellow-800'
-    };
-    
-    return (
-      <Badge className={variants[status as keyof typeof variants]}>
-        {status.charAt(0).toUpperCase() + status.slice(1)}
-      </Badge>
-    );
-  };
-
-  const getEncryptionBadge = (status: string) => {
-    const variants = {
-      encrypted: 'bg-green-100 text-green-800 border-green-200',
-      processing: 'bg-yellow-100 text-yellow-800 border-yellow-200',
-      failed: 'bg-red-100 text-red-800 border-red-200'
-    };
-    
-    return (
-      <Badge variant="outline" className={variants[status as keyof typeof variants]}>
-        <Lock className="h-3 w-3 mr-1" />
-        {status === 'encrypted' ? 'AES-256' : status}
-      </Badge>
-    );
-  };
-
-  const getAccessLevelColor = (level: string) => {
-    const colors = {
-      public: 'text-green-600',
-      team: 'text-blue-600',
-      restricted: 'text-red-600'
-    };
-    return colors[level as keyof typeof colors];
-  };
-
-  const getVirusScanBadge = (status: string) => {
-    const variants = {
-      clean: 'bg-green-100 text-green-800',
-      pending: 'bg-gray-100 text-gray-800',
-      infected: 'bg-red-100 text-red-800',
-      failed: 'bg-yellow-100 text-yellow-800'
-    };
-    
-    return (
-      <Badge className={variants[status as keyof typeof variants]} variant="outline">
-        <Shield className="h-3 w-3 mr-1" />
-        {status === 'clean' ? 'Virus Free' : status}
-      </Badge>
-    );
-  };
-
-  const handleUpload = () => {
-    setIsUploading(true);
-    setUploadProgress(0);
-    
-    // Simulate upload progress
-    const interval = setInterval(() => {
-      setUploadProgress(prev => {
-        if (prev >= 100) {
-          clearInterval(interval);
-          setIsUploading(false);
-          return 100;
-        }
-        return prev + 10;
-      });
-    }, 200);
-  };
-
-  const handleDownload = (docId: string) => {
-    console.log('Secure download initiated for document:', docId);
-    // In real implementation, this would create an audit log entry
-  };
-
-  const handleDelete = (docId: string) => {
-    setDocuments(prev => prev.filter(doc => doc.id !== docId));
-    console.log('Document securely deleted:', docId);
-  };
-
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString();
-  };
-
-  const approvedDocs = documents.filter(doc => doc.status === 'approved').length;
+  const approvedDocs = documents.filter((doc) => doc.status === "approved").length;
   const totalDocs = documents.length;
   const progressPercentage = totalDocs > 0 ? (approvedDocs / totalDocs) * 100 : 0;
 
+  const handleUploadClick = (doc?: DocumentRow) => {
+    setSelectedDocument(doc ?? null);
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = async (
+    event: React.ChangeEvent<HTMLInputElement>,
+  ) => {
+    const file = event.target.files?.[0];
+    if (!file) {
+      return;
+    }
+
+    try {
+      await uploadDocument(
+        file,
+        {
+          displayName: selectedDocument?.display_name ?? file.name,
+          stage: selectedDocument?.stage ?? "other",
+          isSecure: true,
+          isRequired: selectedDocument?.is_required ?? false,
+          metadata: selectedDocument?.metadata ?? null,
+        },
+        {},
+      );
+      await reload();
+    } finally {
+      setSelectedDocument(null);
+      event.target.value = "";
+    }
+  };
+
+  const handleViewDocument = async (doc: DocumentRow) => {
+    const url = await getSignedUrlForAction(doc, "viewed", {}, {
+      stage: doc.stage,
+      security: doc.metadata,
+    });
+    window.open(url, "_blank", "noopener,noreferrer");
+  };
+
+  const handleDownloadDocument = async (doc: DocumentRow) => {
+    const url = await getSignedUrlForAction(doc, "downloaded", {}, {
+      stage: doc.stage,
+      security: doc.metadata,
+    });
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = doc.file_name;
+    anchor.rel = "noopener";
+    anchor.target = "_blank";
+    document.body.appendChild(anchor);
+    anchor.click();
+    document.body.removeChild(anchor);
+  };
+
+  const handleDeleteDocument = async (doc: DocumentRow) => {
+    await deleteDocument(doc, {}, "Requested by administrator");
+    await reload();
+  };
+
+  const handleVirusScanRefresh = async (doc: DocumentRow) => {
+    await refreshVirusScanStatus(doc.id);
+    await reload();
+  };
+
+  const handleStatusOverride = async (doc: DocumentRow, status: DocumentStatus) => {
+    await updateStatus(doc.id, status);
+    await reload();
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 p-6">
-      <div className="max-w-6xl mx-auto">
+      <div className="max-w-7xl mx-auto">
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900 mb-2">Secure Document Center</h1>
-          <p className="text-gray-600">Enterprise-grade document security and compliance</p>
+          <p className="text-gray-600">
+            Enterprise-grade document security, encryption and compliance monitoring
+          </p>
         </div>
 
-        {/* Security Overview */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
           <Card>
             <CardContent className="p-4">
@@ -201,68 +217,63 @@ const SecureDocumentManager: React.FC = () => {
                 <Shield className="h-5 w-5 text-green-500" />
                 <div>
                   <p className="text-sm font-medium">Encryption</p>
-                  <p className="text-xs text-gray-500">AES-256</p>
+                  <p className="text-xs text-gray-500">AES-256 at rest</p>
                 </div>
               </div>
             </CardContent>
           </Card>
-          
           <Card>
             <CardContent className="p-4">
               <div className="flex items-center gap-2">
                 <Scan className="h-5 w-5 text-blue-500" />
                 <div>
                   <p className="text-sm font-medium">Virus Scan</p>
-                  <p className="text-xs text-gray-500">Real-time</p>
+                  <p className="text-xs text-gray-500">Automated & on-demand</p>
                 </div>
               </div>
             </CardContent>
           </Card>
-          
           <Card>
             <CardContent className="p-4">
               <div className="flex items-center gap-2">
                 <Eye className="h-5 w-5 text-purple-500" />
                 <div>
                   <p className="text-sm font-medium">Audit Trail</p>
-                  <p className="text-xs text-gray-500">Complete</p>
+                  <p className="text-xs text-gray-500">Real-time tracking</p>
                 </div>
               </div>
             </CardContent>
           </Card>
-          
           <Card>
             <CardContent className="p-4">
               <div className="flex items-center gap-2">
                 <Clock className="h-5 w-5 text-orange-500" />
                 <div>
                   <p className="text-sm font-medium">Retention</p>
-                  <p className="text-xs text-gray-500">7 Years</p>
+                  <p className="text-xs text-gray-500">Policy-based lifecycle</p>
                 </div>
               </div>
             </CardContent>
           </Card>
         </div>
 
-        {/* Upload Progress */}
-        {isUploading && (
+        {uploadProgress > 0 && uploadProgress < 100 && (
           <Card className="mb-6">
             <CardContent className="p-4">
               <div className="space-y-2">
                 <div className="flex justify-between text-sm">
-                  <span>Uploading document...</span>
+                  <span>Uploading secure document...</span>
                   <span>{uploadProgress}%</span>
                 </div>
                 <Progress value={uploadProgress} className="h-2" />
                 <p className="text-xs text-gray-500">
-                  Encrypting and scanning for security threats...
+                  Files are encrypted, access controlled and scanned for threats automatically.
                 </p>
               </div>
             </CardContent>
           </Card>
         )}
 
-        {/* Document Progress */}
         <Card className="mb-6">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -273,120 +284,182 @@ const SecureDocumentManager: React.FC = () => {
           <CardContent>
             <div className="space-y-4">
               <div className="flex justify-between text-sm">
-                <span>Approved Documents</span>
-                <span>{approvedDocs} of {totalDocs}</span>
+                <span>Approved Secure Documents</span>
+                <span>
+                  {approvedDocs} of {totalDocs}
+                </span>
               </div>
               <Progress value={progressPercentage} className="h-2" />
               <div className="flex justify-between text-xs text-gray-500">
-                <span>GDPR & GLBA Compliant</span>
-                <span>SOC 2 Type II Certified</span>
+                <span>Zero-trust access controls</span>
+                <span>Full audit logging enabled</span>
               </div>
             </div>
           </CardContent>
         </Card>
 
-        {/* Documents List */}
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle>Secure Documents</CardTitle>
-            <Button onClick={handleUpload} disabled={isUploading} className="flex items-center gap-2">
-              <Upload className="h-4 w-4" />
-              {isUploading ? 'Uploading...' : 'Upload Document'}
-            </Button>
+        <Card className="mb-6">
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <CardTitle>Secure Documents</CardTitle>
+              <div className="flex items-center gap-3">
+                <Input
+                  placeholder="Search secure documents"
+                  className="w-64"
+                  value={searchTerm}
+                  onChange={(event) => setSearchTerm(event.target.value)}
+                />
+                <Button className="flex items-center gap-2" onClick={() => handleUploadClick()}>
+                  <Upload className="h-4 w-4" />
+                  Upload Secure Document
+                </Button>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  className="hidden"
+                  onChange={handleFileChange}
+                />
+              </div>
+            </div>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
-              {documents.map((doc) => (
-                <div
-                  key={doc.id}
-                  className="p-4 border rounded-lg hover:bg-gray-50 space-y-3"
-                >
-                  {/* Document Header */}
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-center gap-3">
-                      {getStatusIcon(doc.status)}
-                      <div>
-                        <h3 className="font-medium text-gray-900">{doc.name}</h3>
-                        <p className="text-sm text-gray-500">{doc.type}</p>
-                        {doc.uploadDate && (
-                          <p className="text-xs text-gray-400">
-                            Uploaded: {formatDate(doc.uploadDate)}
-                            {doc.size && ` • ${doc.size}`}
-                          </p>
-                        )}
+            {isLoading ? (
+              <div className="flex items-center justify-center py-12 text-gray-500">
+                <Loader2 className="h-5 w-5 animate-spin mr-2" /> Loading secure documents...
+              </div>
+            ) : filteredDocuments.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-12 text-center text-gray-500">
+                <ShieldAlert className="h-6 w-6 mb-2" />
+                No secure documents found for your query.
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {filteredDocuments.map((doc) => {
+                  const encryptionStatus = getMetadataValue(doc, "encryption_status") ?? "encrypted";
+                  const accessLevel = getMetadataValue(doc, "access_level") ?? "restricted";
+                  const lastAccessed = getMetadataValue(doc, "last_accessed");
+                  const retentionDate = getMetadataValue(doc, "retention_date") ?? doc.retention_date;
+
+                  return (
+                    <div key={doc.id} className="p-4 border rounded-lg space-y-3 bg-white shadow-sm">
+                      <div className="flex items-start justify-between">
+                        <div className="flex items-start gap-3">
+                          <div className="mt-1">
+                            {doc.status === "approved" && (
+                              <CheckCircle className="h-5 w-5 text-green-500" />
+                            )}
+                            {doc.status === "pending_review" && (
+                              <Loader2 className="h-5 w-5 text-purple-500 animate-spin" />
+                            )}
+                            {doc.status === "rejected" && (
+                              <AlertTriangle className="h-5 w-5 text-red-500" />
+                            )}
+                            {doc.status === "uploaded" && (
+                              <Clock className="h-5 w-5 text-amber-500" />
+                            )}
+                          </div>
+                          <div>
+                            <h3 className="font-medium text-gray-900">{doc.display_name}</h3>
+                            <p className="text-sm text-gray-500">
+                              {getMetadataValue(doc, "type") ?? "Secure Document"}
+                            </p>
+                            <p className="text-xs text-gray-400">
+                              Uploaded {new Date(doc.uploaded_at).toLocaleString()}
+                              {formatBytes(doc.size_bytes) ? ` • ${formatBytes(doc.size_bytes)}` : ""}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Badge className={statusBadges[doc.status]}>{statusLabels[doc.status]}</Badge>
+                          <Badge variant="outline" className={virusScanBadgeClasses[doc.virus_scan_status]}>
+                            <Scan className="h-3 w-3 mr-1" />
+                            {virusScanLabels[doc.virus_scan_status]}
+                          </Badge>
+                        </div>
                       </div>
-                    </div>
-                    
-                    <div className="flex items-center gap-2">
-                      {getStatusBadge(doc.status)}
-                      <div className="flex gap-1">
-                        {doc.status === 'approved' && (
-                          <>
-                            <Button variant="ghost" size="sm" onClick={() => handleDownload(doc.id)}>
-                              <Eye className="h-4 w-4" />
-                            </Button>
-                            <Button variant="ghost" size="sm" onClick={() => handleDownload(doc.id)}>
-                              <Download className="h-4 w-4" />
-                            </Button>
-                          </>
-                        )}
-                        <Button variant="ghost" size="sm" onClick={() => handleDelete(doc.id)}>
-                          <Trash2 className="h-4 w-4 text-red-500" />
-                        </Button>
+
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm text-gray-600">
+                        <div>
+                          <Label className="text-xs uppercase text-gray-400">Access Level</Label>
+                          <p className="font-medium text-gray-800">{accessLevel}</p>
+                        </div>
+                        <div>
+                          <Label className="text-xs uppercase text-gray-400">Encryption</Label>
+                          <Badge variant="outline" className="mt-1 inline-flex items-center gap-1">
+                            <Lock className="h-3 w-3" />
+                            {encryptionStatus}
+                          </Badge>
+                        </div>
+                        <div>
+                          <Label className="text-xs uppercase text-gray-400">Last Accessed</Label>
+                          <p>{formatDate(lastAccessed ?? doc.updated_at) ?? "No access recorded"}</p>
+                        </div>
                       </div>
+
+                      <Separator />
+
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div className="flex items-center gap-2 text-xs text-gray-500">
+                          <span>Retention until {formatDate(retentionDate) ?? "policy default"}</span>
+                          <span>•</span>
+                          <span>Version v{doc.version}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => void handleViewDocument(doc)}
+                          >
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => void handleDownloadDocument(doc)}
+                          >
+                            <Download className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => void handleVirusScanRefresh(doc)}
+                          >
+                            <Scan className="h-4 w-4 mr-1" />
+                            Re-scan
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => void handleStatusOverride(doc, "pending_review")}
+                          >
+                            <Clock className="h-4 w-4 mr-1" />
+                            Re-evaluate
+                          </Button>
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            onClick={() => void handleDeleteDocument(doc)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+
+                      {(doc.virus_scan_status === "infected" || doc.virus_scan_status === "failed") && (
+                        <Alert variant="destructive">
+                          <AlertDescription className="text-sm">
+                            Security alert: Virus scan reported "{virusScanLabels[doc.virus_scan_status]}".
+                            Access to this document should be reviewed immediately.
+                          </AlertDescription>
+                        </Alert>
+                      )}
                     </div>
-                  </div>
-
-                  {/* Security Information */}
-                  <div className="flex flex-wrap gap-2">
-                    {getEncryptionBadge(doc.encryptionStatus)}
-                    {getVirusScanBadge(doc.virusScanStatus)}
-                    <Badge variant="outline" className={getAccessLevelColor(doc.accessLevel)}>
-                      Access: {doc.accessLevel}
-                    </Badge>
-                  </div>
-
-                  {/* Access Information */}
-                  <div className="flex justify-between text-xs text-gray-500">
-                    <span>
-                      Accessed {doc.accessCount} times
-                      {doc.lastAccessed && ` • Last: ${formatDate(doc.lastAccessed)}`}
-                    </span>
-                    {doc.retentionDate && (
-                      <span>Retention until: {formatDate(doc.retentionDate)}</span>
-                    )}
-                  </div>
-
-                  {/* Security Alerts */}
-                  {doc.virusScanStatus === 'infected' && (
-                    <Alert variant="destructive">
-                      <AlertTriangle className="h-4 w-4" />
-                      <AlertDescription>
-                        Security threat detected. Document quarantined.
-                      </AlertDescription>
-                    </Alert>
-                  )}
-                </div>
-              ))}
-            </div>
+                  );
+                })}
+              </div>
+            )}
           </CardContent>
         </Card>
-
-        {/* Compliance Footer */}
-        <div className="mt-8 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-          <div className="flex items-center gap-2 mb-2">
-            <Shield className="h-5 w-5 text-blue-600" />
-            <h3 className="font-medium text-blue-900">Security & Compliance</h3>
-          </div>
-          <p className="text-sm text-blue-800 mb-2">
-            All documents are encrypted with AES-256 encryption, scanned for malware, and stored in SOC 2 Type II certified infrastructure.
-          </p>
-          <div className="flex gap-2">
-            <Badge variant="outline" className="text-blue-600 border-blue-600">GDPR Compliant</Badge>
-            <Badge variant="outline" className="text-blue-600 border-blue-600">GLBA Certified</Badge>
-            <Badge variant="outline" className="text-blue-600 border-blue-600">SOC 2 Type II</Badge>
-          </div>
-        </div>
       </div>
     </div>
   );
