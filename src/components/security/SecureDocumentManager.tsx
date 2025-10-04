@@ -7,11 +7,13 @@ import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Separator } from '@/components/ui/separator';
-import { 
-  FileText, 
-  Upload, 
-  Download, 
-  Eye, 
+import { logAuditEvent, type AuditEventInput } from '@/lib/audit';
+import { useOptionalAuth } from './AuthProvider';
+import {
+  FileText,
+  Upload,
+  Download,
+  Eye,
   Shield, 
   Lock,
   Scan,
@@ -37,6 +39,7 @@ interface SecureDocument {
 }
 
 const SecureDocumentManager: React.FC = () => {
+  const auth = useOptionalAuth();
   const [documents, setDocuments] = useState<SecureDocument[]>([
     {
       id: '1',
@@ -80,6 +83,29 @@ const SecureDocumentManager: React.FC = () => {
 
   const [uploadProgress, setUploadProgress] = useState(0);
   const [isUploading, setIsUploading] = useState(false);
+
+  const defaultUserAgent = typeof navigator !== 'undefined' ? navigator.userAgent : 'unknown-agent';
+  const defaultLocation =
+    typeof Intl !== 'undefined' ? Intl.DateTimeFormat().resolvedOptions().timeZone : undefined;
+
+  const recordAudit = async (event: AuditEventInput) => {
+    try {
+      await logAuditEvent({
+        userId: auth?.user?.id ?? event.userId ?? 'unknown',
+        userName:
+          auth?.user
+            ? `${auth.user.firstName} ${auth.user.lastName}`
+            : event.userName ?? 'Unknown User',
+        userRole: auth?.user?.role ?? event.userRole ?? 'unknown',
+        userAgent: event.userAgent ?? defaultUserAgent,
+        location: event.location ?? defaultLocation,
+        ipAddress: event.ipAddress ?? 'unknown',
+        ...event,
+      });
+    } catch (error) {
+      console.warn('[audit] Unable to record document event', error);
+    }
+  };
 
   const getStatusIcon = (status: string) => {
     switch (status) {
@@ -151,15 +177,38 @@ const SecureDocumentManager: React.FC = () => {
   };
 
   const handleUpload = () => {
+    if (isUploading) return;
+
+    const newDocument: SecureDocument = {
+      id: `doc_${Date.now()}`,
+      name: `Secure Upload ${documents.length + 1}`,
+      type: 'Supporting',
+      status: 'uploaded',
+      uploadDate: new Date().toISOString(),
+      size: '1.2 MB',
+      encryptionStatus: 'processing',
+      accessLevel: 'restricted',
+      accessCount: 0,
+      virusScanStatus: 'pending',
+    };
+
     setIsUploading(true);
     setUploadProgress(0);
-    
-    // Simulate upload progress
+
     const interval = setInterval(() => {
       setUploadProgress(prev => {
         if (prev >= 100) {
           clearInterval(interval);
           setIsUploading(false);
+          setDocuments(current => [newDocument, ...current]);
+          void recordAudit({
+            action: 'document_upload',
+            resource: newDocument.name,
+            resourceId: newDocument.id,
+            status: 'success',
+            riskLevel: 'high',
+            details: 'Document uploaded via secure manager',
+          });
           return 100;
         }
         return prev + 10;
@@ -168,13 +217,28 @@ const SecureDocumentManager: React.FC = () => {
   };
 
   const handleDownload = (docId: string) => {
-    console.log('Secure download initiated for document:', docId);
-    // In real implementation, this would create an audit log entry
+    const document = documents.find(doc => doc.id === docId);
+    void recordAudit({
+      action: 'document_download',
+      resource: document?.name ?? 'Document',
+      resourceId: docId,
+      status: 'success',
+      riskLevel: document?.accessLevel === 'restricted' ? 'high' : 'medium',
+      details: 'Secure download initiated',
+    });
   };
 
   const handleDelete = (docId: string) => {
+    const document = documents.find(doc => doc.id === docId);
     setDocuments(prev => prev.filter(doc => doc.id !== docId));
-    console.log('Document securely deleted:', docId);
+    void recordAudit({
+      action: 'document_delete',
+      resource: document?.name ?? 'Document',
+      resourceId: docId,
+      status: 'success',
+      riskLevel: 'high',
+      details: 'Document securely deleted',
+    });
   };
 
   const formatDate = (dateString: string) => {

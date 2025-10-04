@@ -22,6 +22,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "./ui/select";
+import { logAuditEvent, type AuditEventInput } from "@/lib/audit";
+import { useOptionalAuth } from "./security/AuthProvider";
 
 interface Message {
   id: string;
@@ -60,6 +62,33 @@ const MessagingSystem: React.FC<MessagingSystemProps> = ({
   const [selectedTopic, setSelectedTopic] = useState<string | undefined>(
     undefined,
   );
+  const auth = useOptionalAuth();
+
+  const defaultUserAgent =
+    typeof navigator !== "undefined" ? navigator.userAgent : "unknown-agent";
+  const defaultLocation =
+    typeof Intl !== "undefined"
+      ? Intl.DateTimeFormat().resolvedOptions().timeZone
+      : undefined;
+
+  const recordAudit = async (event: AuditEventInput) => {
+    try {
+      await logAuditEvent({
+        userId: auth?.user?.id ?? event.userId ?? currentUser.name,
+        userName:
+          auth?.user
+            ? `${auth.user.firstName} ${auth.user.lastName}`
+            : event.userName ?? currentUser.name,
+        userRole: auth?.user?.role ?? event.userRole ?? currentUser.role,
+        userAgent: event.userAgent ?? defaultUserAgent,
+        location: event.location ?? defaultLocation,
+        ipAddress: event.ipAddress ?? "unknown",
+        ...event,
+      });
+    } catch (error) {
+      console.warn("[audit] Failed to record messaging event", error);
+    }
+  };
 
   const filteredMessages = messages
     .filter((message) => {
@@ -79,6 +108,20 @@ const MessagingSystem: React.FC<MessagingSystemProps> = ({
       // In a real app, this would send the message to a backend
       console.log("Sending message:", messageText);
       setMessageText("");
+      const target =
+        selectedTopic && selectedTopic !== "all"
+          ? selectedTopic
+          : activeTab === "direct"
+            ? "direct"
+            : "channel";
+      void recordAudit({
+        action: "message_send",
+        resource: "messaging_system",
+        resourceId: target,
+        status: "success",
+        riskLevel: "medium",
+        details: `Message sent via ${target}`,
+      });
     }
   };
 

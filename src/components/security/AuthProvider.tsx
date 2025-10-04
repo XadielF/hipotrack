@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { logAuditEvent, type AuditEventInput } from '@/lib/audit';
 
 interface User {
   id: string;
@@ -32,6 +33,8 @@ export const useAuth = () => {
   return context;
 };
 
+export const useOptionalAuth = () => useContext(AuthContext);
+
 interface AuthProviderProps {
   children: React.ReactNode;
 }
@@ -39,6 +42,27 @@ interface AuthProviderProps {
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [sessionTimeRemaining, setSessionTimeRemaining] = useState(0);
+
+  const defaultUserAgent = typeof navigator !== 'undefined' ? navigator.userAgent : 'unknown-agent';
+  const defaultLocation =
+    typeof Intl !== 'undefined' ? Intl.DateTimeFormat().resolvedOptions().timeZone : undefined;
+
+  const recordAudit = async (event: AuditEventInput) => {
+    try {
+      await logAuditEvent({
+        userId: user?.id ?? event.userId,
+        userName:
+          user ? `${user.firstName} ${user.lastName}` : event.userName ?? 'Unknown User',
+        userRole: user?.role ?? event.userRole ?? 'unknown',
+        ipAddress: event.ipAddress ?? 'unknown',
+        userAgent: event.userAgent ?? defaultUserAgent,
+        location: event.location ?? defaultLocation,
+        ...event,
+      });
+    } catch (auditError) {
+      console.warn('[audit] Failed to record authentication event', auditError);
+    }
+  };
 
   // Role-based permissions mapping
   const rolePermissions = {
@@ -84,7 +108,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     try {
       // Simulate API call with security checks
       console.log('Authenticating user:', email);
-      
+
       // Mock user data - in real app, this comes from secure backend
       const mockUser: User = {
         id: '1',
@@ -103,30 +127,53 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setUser(mockUser);
       setSessionTimeRemaining(30 * 60 * 1000);
 
-      // Log security event
-      console.log('Security Event: User login successful', {
+      await recordAudit({
+        action: 'login_attempt',
+        resource: 'authentication',
+        status: 'success',
+        riskLevel: 'medium',
         userId: mockUser.id,
-        timestamp: new Date().toISOString(),
-        ip: 'xxx.xxx.xxx.xxx' // Would be actual IP
+        userName: `${mockUser.firstName} ${mockUser.lastName}`,
+        userRole: mockUser.role,
+        details: mfaCode ? 'MFA challenge passed' : 'MFA challenge skipped in demo',
       });
 
       return true;
     } catch (error) {
       console.error('Login failed:', error);
+      await recordAudit({
+        action: 'login_attempt',
+        resource: 'authentication',
+        status: 'failed',
+        riskLevel: 'high',
+        userId: email,
+        userName: email,
+        userRole: 'unknown',
+        details: 'Login attempt failed',
+      });
       return false;
     }
   };
 
   const logout = () => {
+    const currentUser = user;
     // Clear session data
     sessionStorage.removeItem('hipotrack_user');
     setUser(null);
     setSessionTimeRemaining(0);
 
-    // Log security event
-    console.log('Security Event: User logout', {
-      timestamp: new Date().toISOString()
-    });
+    if (currentUser) {
+      void recordAudit({
+        action: 'logout',
+        resource: 'authentication',
+        status: 'success',
+        riskLevel: 'low',
+        userId: currentUser.id,
+        userName: `${currentUser.firstName} ${currentUser.lastName}`,
+        userRole: currentUser.role,
+        details: 'User initiated logout',
+      });
+    }
   };
 
   const hasPermission = (permission: string): boolean => {
@@ -143,6 +190,16 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       sessionStorage.setItem('hipotrack_user', JSON.stringify(updatedUser));
       setUser(updatedUser);
       setSessionTimeRemaining(30 * 60 * 1000);
+      void recordAudit({
+        action: 'session_refresh',
+        resource: 'authentication',
+        status: 'success',
+        riskLevel: 'low',
+        userId: updatedUser.id,
+        userName: `${updatedUser.firstName} ${updatedUser.lastName}`,
+        userRole: updatedUser.role,
+        details: 'Session extended by user',
+      });
     }
   };
 
