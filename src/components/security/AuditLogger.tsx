@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Separator } from '@/components/ui/separator';
+import type { Tables } from '@/types/supabase';
 import { 
   Activity, 
   Shield, 
@@ -23,22 +24,7 @@ import {
   RefreshCw
 } from 'lucide-react';
 
-interface AuditLog {
-  id: string;
-  timestamp: string;
-  userId: string;
-  userName: string;
-  userRole: string;
-  action: string;
-  resource: string;
-  resourceId?: string;
-  ipAddress: string;
-  userAgent: string;
-  status: 'success' | 'failed' | 'blocked';
-  riskLevel: 'low' | 'medium' | 'high' | 'critical';
-  details?: string;
-  location?: string;
-}
+type AuditLog = Tables<'audit_logs'>;
 
 const AuditLogger: React.FC = () => {
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([
@@ -55,6 +41,7 @@ const AuditLogger: React.FC = () => {
       userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
       status: 'success',
       riskLevel: 'low',
+      details: null,
       location: 'San Francisco, CA'
     },
     {
@@ -70,6 +57,7 @@ const AuditLogger: React.FC = () => {
       userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
       status: 'success',
       riskLevel: 'medium',
+      details: null,
       location: 'New York, NY'
     },
     {
@@ -80,6 +68,7 @@ const AuditLogger: React.FC = () => {
       userRole: 'unknown',
       action: 'login_attempt',
       resource: 'authentication',
+      resourceId: null,
       ipAddress: '198.51.100.42',
       userAgent: 'curl/7.68.0',
       status: 'blocked',
@@ -100,6 +89,7 @@ const AuditLogger: React.FC = () => {
       userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15',
       status: 'success',
       riskLevel: 'low',
+      details: null,
       location: 'Los Angeles, CA'
     },
     {
@@ -110,6 +100,7 @@ const AuditLogger: React.FC = () => {
       userRole: 'processor',
       action: 'bulk_export',
       resource: 'client_data',
+      resourceId: null,
       ipAddress: '192.168.1.110',
       userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
       status: 'success',

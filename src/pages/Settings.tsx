@@ -7,11 +7,11 @@ import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
-import { 
-  Settings as SettingsIcon, 
-  Bell, 
-  Shield, 
-  Palette, 
+import {
+  Settings as SettingsIcon,
+  Bell,
+  Shield,
+  Palette,
   Globe, 
   Smartphone,
   Mail,
@@ -22,23 +22,11 @@ import {
   Trash2,
   AlertTriangle
 } from 'lucide-react';
+import type { TablesInsert } from '@/types/supabase';
 
-interface NotificationSettings {
-  email: boolean;
-  sms: boolean;
-  push: boolean;
-  documentUpdates: boolean;
-  messageAlerts: boolean;
-  milestoneReminders: boolean;
-  weeklyDigest: boolean;
-}
+type NotificationSettings = TablesInsert<'notification_settings'>;
 
-interface PrivacySettings {
-  profileVisibility: 'public' | 'team' | 'private';
-  dataSharing: boolean;
-  analyticsTracking: boolean;
-  marketingEmails: boolean;
-}
+type PrivacySettings = TablesInsert<'privacy_settings'>;
 
 const Settings: React.FC = () => {
   const [notifications, setNotifications] = useState<NotificationSettings>({

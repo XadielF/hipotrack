@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Progress } from "@/components/ui/progress";
+import type { Tables } from "@/types/supabase";
 import {
   Check,
   Clock,
@@ -17,15 +18,7 @@ import {
   Eye,
 } from "lucide-react";
 
-interface Document {
-  id: string;
-  name: string;
-  stage: string;
-  status: "pending" | "approved" | "rejected";
-  uploadedBy: string;
-  uploadedAt: string;
-  version: number;
-}
+type Document = Tables<"documents">;
 
 const DocumentManager = () => {
   const [activeTab, setActiveTab] = useState("all");
@@ -79,7 +72,7 @@ const DocumentManager = () => {
 
   const stages = ["Pre-approval", "Appraisal", "Underwriting", "Closing"];
 
-  const getStatusIcon = (status: string) => {
+  const getStatusIcon = (status: Document["status"]) => {
     switch (status) {
       case "approved":
         return <Check className="h-4 w-4 text-green-500" />;
@@ -92,7 +85,7 @@ const DocumentManager = () => {
     }
   };
 
-  const getStatusBadge = (status: string) => {
+  const getStatusBadge = (status: Document["status"]) => {
     switch (status) {
       case "approved":
         return (

@@ -8,24 +8,9 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { MessageCircle, Send, Paperclip, Filter, Search, Users } from 'lucide-react';
+import type { Tables } from '@/types/supabase';
 
-interface Message {
-  id: string;
-  sender: {
-    name: string;
-    avatar?: string;
-    role: string;
-  };
-  content: string;
-  timestamp: string;
-  attachments?: Array<{
-    name: string;
-    type: string;
-    url: string;
-  }>;
-  topic?: string;
-  participants?: string[];
-}
+type Message = Tables<'messages'>;
 
 const Messages: React.FC = () => {
   const [messageText, setMessageText] = useState('');
@@ -42,6 +27,7 @@ const Messages: React.FC = () => {
       },
       content: 'Hi! I\'ve reviewed your application and we need a few additional documents. Please upload your most recent pay stubs when you have a chance.',
       timestamp: '2024-01-15T10:30:00Z',
+      attachments: null,
       topic: 'Documentation',
       participants: ['You', 'Sarah Johnson']
     },
@@ -54,6 +40,7 @@ const Messages: React.FC = () => {
       },
       content: 'Great news! The seller has accepted your offer. We can now move forward with the inspection. I\'ll coordinate with the inspector and keep you updated.',
       timestamp: '2024-01-15T09:15:00Z',
+      attachments: null,
       topic: 'Property',
       participants: ['You', 'Mike Chen', 'Sarah Johnson']
     },
@@ -66,6 +53,7 @@ const Messages: React.FC = () => {
       },
       content: 'Thank you for the update! I\'ll upload the pay stubs today. When do you expect to have the final approval?',
       timestamp: '2024-01-15T11:45:00Z',
+      attachments: null,
       topic: 'Documentation',
       participants: ['You', 'Sarah Johnson']
     },
@@ -78,6 +66,7 @@ const Messages: React.FC = () => {
       },
       content: 'I\'ve processed your income verification documents. Everything looks good! We\'re on track for closing next week.',
       timestamp: '2024-01-14T16:20:00Z',
+      attachments: null,
       topic: 'Processing',
       participants: ['You', 'Lisa Rodriguez', 'Sarah Johnson']
     }
@@ -198,7 +187,7 @@ const Messages: React.FC = () => {
                       }`}
                     >
                       <Avatar className="h-8 w-8">
-                        <AvatarImage src={message.sender.avatar} />
+                        <AvatarImage src={message.sender.avatar ?? undefined} />
                         <AvatarFallback>
                           {message.sender.name.split(' ').map(n => n[0]).join('')}
                         </AvatarFallback>
