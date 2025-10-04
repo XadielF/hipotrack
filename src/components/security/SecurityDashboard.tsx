@@ -108,19 +108,19 @@ const SecurityDashboard: React.FC = () => {
               </div>
 
               <div className="flex gap-2">
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  onClick={refreshSession}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => void refreshSession()}
                   className="flex-1"
                 >
                   <RefreshCw className="h-4 w-4 mr-1" />
                   Extend
                 </Button>
-                <Button 
-                  variant="destructive" 
-                  size="sm" 
-                  onClick={logout}
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={() => void logout()}
                   className="flex-1"
                 >
                   <LogOut className="h-4 w-4 mr-1" />
