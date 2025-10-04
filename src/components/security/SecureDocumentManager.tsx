@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Separator } from '@/components/ui/separator';
+import type { Tables } from '@/types/supabase';
 import { 
   FileText, 
   Upload, 
@@ -21,20 +22,7 @@ import {
   Trash2
 } from 'lucide-react';
 
-interface SecureDocument {
-  id: string;
-  name: string;
-  type: string;
-  status: 'pending' | 'uploaded' | 'scanning' | 'approved' | 'rejected';
-  uploadDate?: string;
-  size?: string;
-  encryptionStatus: 'encrypted' | 'processing' | 'failed';
-  accessLevel: 'public' | 'team' | 'restricted';
-  lastAccessed?: string;
-  accessCount: number;
-  virusScanStatus: 'pending' | 'clean' | 'infected' | 'failed';
-  retentionDate?: string;
-}
+type SecureDocument = Tables<'secure_documents'>;
 
 const SecureDocumentManager: React.FC = () => {
   const [documents, setDocuments] = useState<SecureDocument[]>([
@@ -71,17 +59,21 @@ const SecureDocumentManager: React.FC = () => {
       name: 'Property Appraisal Report',
       type: 'Property',
       status: 'pending',
+      uploadDate: null,
+      size: null,
       encryptionStatus: 'processing',
       accessLevel: 'restricted',
+      lastAccessed: null,
       accessCount: 0,
-      virusScanStatus: 'pending'
+      virusScanStatus: 'pending',
+      retentionDate: null
     }
   ]);
 
   const [uploadProgress, setUploadProgress] = useState(0);
   const [isUploading, setIsUploading] = useState(false);
 
-  const getStatusIcon = (status: string) => {
+  const getStatusIcon = (status: SecureDocument['status']) => {
     switch (status) {
       case 'approved':
         return <CheckCircle className="h-4 w-4 text-green-500" />;
@@ -94,56 +86,58 @@ const SecureDocumentManager: React.FC = () => {
     }
   };
 
-  const getStatusBadge = (status: string) => {
-    const variants = {
+  const getStatusBadge = (status: SecureDocument['status']) => {
+    const variants: Record<SecureDocument['status'], string> = {
       approved: 'bg-green-100 text-green-800',
       scanning: 'bg-blue-100 text-blue-800',
       rejected: 'bg-red-100 text-red-800',
       pending: 'bg-gray-100 text-gray-800',
       uploaded: 'bg-yellow-100 text-yellow-800'
     };
-    
+
     return (
-      <Badge className={variants[status as keyof typeof variants]}>
+      <Badge className={variants[status]}>
         {status.charAt(0).toUpperCase() + status.slice(1)}
       </Badge>
     );
   };
 
-  const getEncryptionBadge = (status: string) => {
-    const variants = {
+  const getEncryptionBadge = (
+    status: SecureDocument['encryptionStatus']
+  ) => {
+    const variants: Record<SecureDocument['encryptionStatus'], string> = {
       encrypted: 'bg-green-100 text-green-800 border-green-200',
       processing: 'bg-yellow-100 text-yellow-800 border-yellow-200',
       failed: 'bg-red-100 text-red-800 border-red-200'
     };
-    
+
     return (
-      <Badge variant="outline" className={variants[status as keyof typeof variants]}>
+      <Badge variant="outline" className={variants[status]}>
         <Lock className="h-3 w-3 mr-1" />
         {status === 'encrypted' ? 'AES-256' : status}
       </Badge>
     );
   };
 
-  const getAccessLevelColor = (level: string) => {
-    const colors = {
+  const getAccessLevelColor = (level: SecureDocument['accessLevel']) => {
+    const colors: Record<SecureDocument['accessLevel'], string> = {
       public: 'text-green-600',
       team: 'text-blue-600',
       restricted: 'text-red-600'
     };
-    return colors[level as keyof typeof colors];
+    return colors[level];
   };
 
-  const getVirusScanBadge = (status: string) => {
-    const variants = {
+  const getVirusScanBadge = (status: SecureDocument['virusScanStatus']) => {
+    const variants: Record<SecureDocument['virusScanStatus'], string> = {
       clean: 'bg-green-100 text-green-800',
       pending: 'bg-gray-100 text-gray-800',
       infected: 'bg-red-100 text-red-800',
       failed: 'bg-yellow-100 text-yellow-800'
     };
-    
+
     return (
-      <Badge className={variants[status as keyof typeof variants]} variant="outline">
+      <Badge className={variants[status]} variant="outline">
         <Shield className="h-3 w-3 mr-1" />
         {status === 'clean' ? 'Virus Free' : status}
       </Badge>
