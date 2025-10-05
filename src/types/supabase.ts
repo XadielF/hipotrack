@@ -4,377 +4,175 @@ export type Json =
   | boolean
   | null
   | { [key: string]: Json | undefined }
-  | Json[];
+  | Json[]
 
-export type DocumentStatus = "pending" | "approved" | "rejected";
-export type SecureDocumentStatus =
-  | "pending"
-  | "uploaded"
-  | "scanning"
-  | "approved"
-  | "rejected";
-export type EncryptionStatus = "encrypted" | "processing" | "failed";
-export type AccessLevel = "public" | "team" | "restricted";
-export type VirusScanStatus = "pending" | "clean" | "infected" | "failed";
-export type AuditLogStatus = "success" | "failed" | "blocked";
-export type AuditLogRiskLevel = "low" | "medium" | "high" | "critical";
-
-export type MessageAttachment = {
-  name: string;
-  type: string;
-  url: string;
-};
-
-export type MessageSender = {
-  name: string;
-  avatar?: string | null;
-  role: string;
-};
-
-export type Address = {
-  street: string;
-  city: string;
-  state: string;
-  zipCode: string;
-};
-
-export type Employment = {
-  company: string;
-  position: string;
-  startDate: string;
-  annualIncome: string;
-};
-
-export type Database = {
+export interface Database {
   public: {
     Tables: {
-      audit_logs: {
+      conversations: {
         Row: {
-          action: string;
-          details: string | null;
-          id: string;
-          ipAddress: string;
-          location: string | null;
-          resource: string;
-          resourceId: string | null;
-          riskLevel: AuditLogRiskLevel;
-          status: AuditLogStatus;
-          timestamp: string;
-          userAgent: string;
-          userId: string;
-          userName: string;
-          userRole: string;
-        };
+          created_at: string
+          id: string
+          title: string | null
+          updated_at: string
+        }
         Insert: {
-          action: string;
-          details?: string | null;
-          id?: string;
-          ipAddress: string;
-          location?: string | null;
-          resource: string;
-          resourceId?: string | null;
-          riskLevel: AuditLogRiskLevel;
-          status: AuditLogStatus;
-          timestamp: string;
-          userAgent: string;
-          userId: string;
-          userName: string;
-          userRole: string;
-        };
+          created_at?: string
+          id?: string
+          title?: string | null
+          updated_at?: string
+        }
         Update: {
-          action?: string;
-          details?: string | null;
-          id?: string;
-          ipAddress?: string;
-          location?: string | null;
-          resource?: string;
-          resourceId?: string | null;
-          riskLevel?: AuditLogRiskLevel;
-          status?: AuditLogStatus;
-          timestamp?: string;
-          userAgent?: string;
-          userId?: string;
-          userName?: string;
-          userRole?: string;
-        };
-        Relationships: [];
-      };
-      cost_items: {
+          created_at?: string
+          id?: string
+          title?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      participants: {
         Row: {
-          amount: number;
-          description: string | null;
-          id: string;
-          isPaid: boolean;
-          name: string;
-          type: "closing" | "tax" | "insurance" | "fee" | "other";
-        };
+          avatar_url: string | null
+          conversation_id: string
+          display_name: string
+          id: string
+          inserted_at: string
+          role: string
+          user_id: string
+        }
         Insert: {
-          amount: number;
-          description?: string | null;
-          id?: string;
-          isPaid?: boolean;
-          name: string;
-          type?: "closing" | "tax" | "insurance" | "fee" | "other";
-        };
+          avatar_url?: string | null
+          conversation_id: string
+          display_name: string
+          id?: string
+          inserted_at?: string
+          role: string
+          user_id: string
+        }
         Update: {
-          amount?: number;
-          description?: string | null;
-          id?: string;
-          isPaid?: boolean;
-          name?: string;
-          type?: "closing" | "tax" | "insurance" | "fee" | "other";
-        };
-        Relationships: [];
-      };
-      documents: {
-        Row: {
-          id: string;
-          name: string;
-          stage: string;
-          status: DocumentStatus;
-          uploadedAt: string;
-          uploadedBy: string;
-          version: number;
-        };
-        Insert: {
-          id?: string;
-          name: string;
-          stage: string;
-          status?: DocumentStatus;
-          uploadedAt?: string;
-          uploadedBy: string;
-          version?: number;
-        };
-        Update: {
-          id?: string;
-          name?: string;
-          stage?: string;
-          status?: DocumentStatus;
-          uploadedAt?: string;
-          uploadedBy?: string;
-          version?: number;
-        };
-        Relationships: [];
-      };
-      document_requirements: {
-        Row: {
-          id: string;
-          name: string;
-          required: boolean;
-          size: string | null;
-          status: 'pending' | 'uploaded' | 'approved' | 'rejected';
-          type: string;
-          uploadDate: string | null;
-        };
-        Insert: {
-          id?: string;
-          name: string;
-          required?: boolean;
-          size?: string | null;
-          status?: 'pending' | 'uploaded' | 'approved' | 'rejected';
-          type: string;
-          uploadDate?: string | null;
-        };
-        Update: {
-          id?: string;
-          name?: string;
-          required?: boolean;
-          size?: string | null;
-          status?: 'pending' | 'uploaded' | 'approved' | 'rejected';
-          type?: string;
-          uploadDate?: string | null;
-        };
-        Relationships: [];
-      };
+          avatar_url?: string | null
+          conversation_id?: string
+          display_name?: string
+          id?: string
+          inserted_at?: string
+          role?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "participants_conversation_id_fkey"
+            columns: ["conversation_id"]
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "participants_user_id_fkey"
+            columns: ["user_id"]
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
       messages: {
         Row: {
-          attachments: MessageAttachment[] | null;
-          content: string;
-          id: string;
-          participants: string[] | null;
-          sender: MessageSender;
-          timestamp: string;
-          topic: string | null;
-        };
+          content: string
+          conversation_id: string
+          created_at: string
+          id: string
+          sender_id: string
+          sender_role: string
+          topic: string | null
+        }
         Insert: {
-          attachments?: MessageAttachment[] | null;
-          content: string;
-          id?: string;
-          participants?: string[] | null;
-          sender: MessageSender;
-          timestamp: string;
-          topic?: string | null;
-        };
+          content: string
+          conversation_id: string
+          created_at?: string
+          id?: string
+          sender_id: string
+          sender_role: string
+          topic?: string | null
+        }
         Update: {
-          attachments?: MessageAttachment[] | null;
-          content?: string;
-          id?: string;
-          participants?: string[] | null;
-          sender?: MessageSender;
-          timestamp?: string;
-          topic?: string | null;
-        };
-        Relationships: [];
-      };
-      notification_settings: {
+          content?: string
+          conversation_id?: string
+          created_at?: string
+          id?: string
+          sender_id?: string
+          sender_role?: string
+          topic?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "messages_conversation_id_fkey"
+            columns: ["conversation_id"]
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "messages_sender_id_fkey"
+            columns: ["sender_id"]
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      attachments: {
         Row: {
-          documentUpdates: boolean;
-          email: boolean;
-          id: string;
-          messageAlerts: boolean;
-          milestoneReminders: boolean;
-          push: boolean;
-          sms: boolean;
-          weeklyDigest: boolean;
-        };
+          content_type: string | null
+          created_at: string
+          id: string
+          message_id: string
+          name: string
+          size: number | null
+          storage_path: string | null
+          url: string | null
+        }
         Insert: {
-          documentUpdates?: boolean;
-          email?: boolean;
-          id?: string;
-          messageAlerts?: boolean;
-          milestoneReminders?: boolean;
-          push?: boolean;
-          sms?: boolean;
-          weeklyDigest?: boolean;
-        };
+          content_type?: string | null
+          created_at?: string
+          id?: string
+          message_id: string
+          name: string
+          size?: number | null
+          storage_path?: string | null
+          url?: string | null
+        }
         Update: {
-          documentUpdates?: boolean;
-          email?: boolean;
-          id?: string;
-          messageAlerts?: boolean;
-          milestoneReminders?: boolean;
-          push?: boolean;
-          sms?: boolean;
-          weeklyDigest?: boolean;
-        };
-        Relationships: [];
-      };
-      profiles: {
-        Row: {
-          address: Address;
-          avatar: string | null;
-          email: string;
-          employment: Employment;
-          firstName: string;
-          id: string;
-          joinDate: string;
-          lastName: string;
-          phone: string;
-          role: string;
-        };
-        Insert: {
-          address: Address;
-          avatar?: string | null;
-          email: string;
-          employment: Employment;
-          firstName: string;
-          id?: string;
-          joinDate?: string;
-          lastName: string;
-          phone: string;
-          role?: string;
-        };
-        Update: {
-          address?: Address;
-          avatar?: string | null;
-          email?: string;
-          employment?: Employment;
-          firstName?: string;
-          id?: string;
-          joinDate?: string;
-          lastName?: string;
-          phone?: string;
-          role?: string;
-        };
-        Relationships: [];
-      };
-      privacy_settings: {
-        Row: {
-          analyticsTracking: boolean;
-          dataSharing: boolean;
-          id: string;
-          marketingEmails: boolean;
-          profileVisibility: 'public' | 'team' | 'private';
-        };
-        Insert: {
-          analyticsTracking?: boolean;
-          dataSharing?: boolean;
-          id?: string;
-          marketingEmails?: boolean;
-          profileVisibility?: 'public' | 'team' | 'private';
-        };
-        Update: {
-          analyticsTracking?: boolean;
-          dataSharing?: boolean;
-          id?: string;
-          marketingEmails?: boolean;
-          profileVisibility?: 'public' | 'team' | 'private';
-        };
-        Relationships: [];
-      };
-      secure_documents: {
-        Row: {
-          accessCount: number;
-          accessLevel: AccessLevel;
-          encryptionStatus: EncryptionStatus;
-          id: string;
-          lastAccessed: string | null;
-          name: string;
-          retentionDate: string | null;
-          size: string | null;
-          status: SecureDocumentStatus;
-          type: string;
-          uploadDate: string | null;
-          virusScanStatus: VirusScanStatus;
-        };
-        Insert: {
-          accessCount?: number;
-          accessLevel: AccessLevel;
-          encryptionStatus: EncryptionStatus;
-          id?: string;
-          lastAccessed?: string | null;
-          name: string;
-          retentionDate?: string | null;
-          size?: string | null;
-          status?: SecureDocumentStatus;
-          type: string;
-          uploadDate?: string | null;
-          virusScanStatus?: VirusScanStatus;
-        };
-        Update: {
-          accessCount?: number;
-          accessLevel?: AccessLevel;
-          encryptionStatus?: EncryptionStatus;
-          id?: string;
-          lastAccessed?: string | null;
-          name?: string;
-          retentionDate?: string | null;
-          size?: string | null;
-          status?: SecureDocumentStatus;
-          type?: string;
-          uploadDate?: string | null;
-          virusScanStatus?: VirusScanStatus;
-        };
-        Relationships: [];
-      };
-    };
-    Views: {};
-    Functions: {};
-    Enums: {};
-    CompositeTypes: {};
-  };
-};
-
-export type Tables<TableName extends keyof Database["public"]["Tables"]> =
-  Database["public"]["Tables"][TableName]["Row"];
-
-export type TablesInsert<
-  TableName extends keyof Database["public"]["Tables"]
-> = Database["public"]["Tables"][TableName]["Insert"];
-
-export type TablesUpdate<
-  TableName extends keyof Database["public"]["Tables"]
-> = Database["public"]["Tables"][TableName]["Update"];
-
-export type Enums<EnumName extends keyof Database["public"]["Enums"]> =
-  Database["public"]["Enums"][EnumName];
+          content_type?: string | null
+          created_at?: string
+          id?: string
+          message_id?: string
+          name?: string
+          size?: number | null
+          storage_path?: string | null
+          url?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "attachments_message_id_fkey"
+            columns: ["message_id"]
+            referencedRelation: "messages"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+    }
+    Views: {}
+    Functions: {
+      is_conversation_member: {
+        Args: { conversation: string }
+        Returns: boolean
+      }
+      is_conversation_role: {
+        Args: { conversation: string; required_role: string }
+        Returns: boolean
+      }
+      set_updated_at: {
+        Args: Record<PropertyKey, never>
+        Returns: unknown
+      }
+    }
+    Enums: {}
+    CompositeTypes: {}
+  }
+}

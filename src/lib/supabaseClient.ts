@@ -1,31 +1,21 @@
-import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { createClient } from "@supabase/supabase-js"
 
-let supabaseClient: SupabaseClient | null = null;
+import type { Database } from "@/types/supabase"
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string | undefined;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
 
-export const getSupabaseClient = (): SupabaseClient | null => {
-  if (supabaseClient) {
-    return supabaseClient;
-  }
+if (!supabaseUrl) {
+  throw new Error("VITE_SUPABASE_URL is not defined")
+}
 
-  if (!supabaseUrl || !supabaseAnonKey) {
-    if (import.meta.env.DEV) {
-      console.warn(
-        '[audit] Supabase credentials are not configured. Falling back to in-memory audit logging.',
-      );
-    }
-    return null;
-  }
+if (!supabaseAnonKey) {
+  throw new Error("VITE_SUPABASE_ANON_KEY is not defined")
+}
 
-  supabaseClient = createClient(supabaseUrl, supabaseAnonKey, {
-    auth: {
-      autoRefreshToken: true,
-      persistSession: true,
-      detectSessionInUrl: true,
-    },
-  });
-
-  return supabaseClient;
-};
+export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    persistSession: true,
+    autoRefreshToken: true,
+  },
+})
