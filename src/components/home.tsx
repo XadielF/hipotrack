@@ -1,34 +1,12 @@
-import React from "react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Button } from "@/components/ui/button"
-import {
-  Bell,
-  MessageSquare,
-  FileText,
-  Home,
-  Settings,
-  User,
-  ChevronRight,
-  AlertCircle,
-} from "lucide-react"
-import MortgageTimeline from "./MortgageTimeline"
-import DocumentManager from "./DocumentManager"
-import MessagingSystem from "./MessagingSystem"
-import CostBreakdown from "./CostBreakdown"
-import {
-  fetchAuthenticatedUser,
-  fetchLoanProgress,
-  fetchTimelineStages,
-  fetchCostFigures,
-} from "@/lib/dashboard-data"
-import type {
-  CostFigures,
-  DashboardUser,
-  LoanProgressSummary,
-  TimelineStage,
-} from "@/types/dashboard"
+import React from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Button } from "@/components/ui/button";
+import { ChevronRight } from "lucide-react";
+import MortgageTimeline from "./MortgageTimeline";
+import DocumentManager from "./DocumentManager";
+import MessagingSystem from "./MessagingSystem";
+import CostBreakdown from "./CostBreakdown";
 
 const HomePage = () => {
   const [user, setUser] = React.useState<DashboardUser | null>(null)
@@ -136,94 +114,8 @@ const HomePage = () => {
   const currentStageName = loanData?.currentStageName ?? loanData?.status ?? "—"
 
   return (
-    <div className="min-h-screen bg-slate-50">
-      <header className="sticky top-0 z-10 bg-white border-b border-slate-200 shadow-sm">
-        <div className="container flex items-center justify-between h-16 px-4 mx-auto">
-          <div className="flex items-center space-x-4">
-            <h1 className="text-xl font-bold text-blue-600">Hipotrack</h1>
-          </div>
-
-          <div className="flex items-center space-x-4">
-            <Button variant="ghost" size="icon" className="relative">
-              <Bell className="w-5 h-5" />
-              {notificationCount > 0 && (
-                <span className="absolute top-0 right-0 w-4 h-4 text-xs text-white bg-red-500 rounded-full">
-                  {notificationCount}
-                </span>
-              )}
-            </Button>
-
-            <div className="flex items-center space-x-2">
-              <Avatar>
-                <AvatarImage src={userAvatar} alt={userName} />
-                <AvatarFallback>{userName.charAt(0)}</AvatarFallback>
-              </Avatar>
-              <div className="hidden text-sm md:block">
-                <p className="font-medium">
-                  {loading ? "Loading..." : userName}
-                </p>
-                <p className="text-xs text-slate-500 capitalize">
-                  {loading
-                    ? ""
-                    : userError
-                      ? "User info unavailable"
-                      : userRole || ""}
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </header>
-
-      <div className="container px-4 py-6 mx-auto">
-        {globalError && (
-          <Card className="mb-6 border-red-200 bg-red-50">
-            <CardContent className="flex items-center gap-2 text-sm text-red-600">
-              <AlertCircle className="h-4 w-4" />
-              <span>{globalError}</span>
-            </CardContent>
-          </Card>
-        )}
-
-        <div className="grid grid-cols-12 gap-6">
-          <div className="col-span-12 md:col-span-3 lg:col-span-2">
-            <div className="sticky top-20">
-              <nav className="space-y-1">
-                <Button variant="ghost" className="w-full justify-start" asChild>
-                  <div className="flex items-center space-x-2 text-blue-600">
-                    <Home className="w-5 h-5" />
-                    <span>Dashboard</span>
-                  </div>
-                </Button>
-                <Button variant="ghost" className="w-full justify-start" asChild>
-                  <div className="flex items-center space-x-2">
-                    <FileText className="w-5 h-5" />
-                    <span>Documents</span>
-                  </div>
-                </Button>
-                <Button variant="ghost" className="w-full justify-start" asChild>
-                  <div className="flex items-center space-x-2">
-                    <MessageSquare className="w-5 h-5" />
-                    <span>Messages</span>
-                  </div>
-                </Button>
-                <Button variant="ghost" className="w-full justify-start" asChild>
-                  <div className="flex items-center space-x-2">
-                    <User className="w-5 h-5" />
-                    <span>Profile</span>
-                  </div>
-                </Button>
-                <Button variant="ghost" className="w-full justify-start" asChild>
-                  <div className="flex items-center space-x-2">
-                    <Settings className="w-5 h-5" />
-                    <span>Settings</span>
-                  </div>
-                </Button>
-              </nav>
-            </div>
-          </div>
-
-          <div className="col-span-12 md:col-span-9 lg:col-span-10">
+    <div>
+            {/* Welcome Card */}
             <Card className="mb-6 bg-gradient-to-r from-blue-600 to-blue-800 text-white">
               <CardContent className="p-6">
                 <div className="flex flex-col md:flex-row justify-between items-start md:items-center">
@@ -312,9 +204,6 @@ const HomePage = () => {
                 </Card>
               </TabsContent>
             </Tabs>
-          </div>
-        </div>
-      </div>
     </div>
   )
 }
