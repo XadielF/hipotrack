@@ -292,7 +292,7 @@ const HomePage = () => {
                     <CardTitle>Messaging System</CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <MessagingSystem />
+                    <MessagingSystem currentUser={messagingUser} />
                   </CardContent>
                 </Card>
               </TabsContent>
