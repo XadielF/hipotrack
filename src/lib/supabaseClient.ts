@@ -1,23 +1,31 @@
-import { createClient } from '@supabase/supabase-js';
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+let supabaseClient: SupabaseClient | null = null;
 
-if (!supabaseUrl) {
-  throw new Error('VITE_SUPABASE_URL is not defined.');
-}
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string | undefined;
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
 
-if (!supabaseAnonKey) {
-  throw new Error('VITE_SUPABASE_ANON_KEY is not defined.');
-}
+export const getSupabaseClient = (): SupabaseClient | null => {
+  if (supabaseClient) {
+    return supabaseClient;
+  }
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-  auth: {
-    persistSession: true,
-    autoRefreshToken: true,
-    detectSessionInUrl: true,
-    storageKey: 'hipotrack.supabase.auth',
-  },
-});
+  if (!supabaseUrl || !supabaseAnonKey) {
+    if (import.meta.env.DEV) {
+      console.warn(
+        '[audit] Supabase credentials are not configured. Falling back to in-memory audit logging.',
+      );
+    }
+    return null;
+  }
 
-export default supabase;
+  supabaseClient = createClient(supabaseUrl, supabaseAnonKey, {
+    auth: {
+      autoRefreshToken: true,
+      persistSession: true,
+      detectSessionInUrl: true,
+    },
+  });
+
+  return supabaseClient;
+};

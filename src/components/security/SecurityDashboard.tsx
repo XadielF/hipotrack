@@ -1,46 +1,46 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
 import { useAuth } from './AuthProvider';
-import { 
-  Shield, 
-  Clock, 
-  LogOut, 
-  RefreshCw, 
+import { useAuditLogs } from '@/hooks/useAuditLogs';
+import type { AuditLog } from '@/lib/audit';
+import {
+  Clock,
+  LogOut,
+  RefreshCw,
   AlertTriangle,
   User,
   Activity,
-  Lock
+  Lock,
 } from 'lucide-react';
+
+const formatActionLabel = (action: string) => action.replace(/_/g, ' ').toUpperCase();
 
 const SecurityDashboard: React.FC = () => {
   const { user, logout, sessionTimeRemaining, refreshSession, hasPermission } = useAuth();
-  const [activityLogs, setActivityLogs] = useState([
-    {
-      id: '1',
-      action: 'Document Upload',
-      timestamp: '2024-01-15T10:30:00Z',
-      ip: '192.168.1.100',
-      status: 'success'
-    },
-    {
-      id: '2',
-      action: 'Profile Update',
-      timestamp: '2024-01-15T09:15:00Z',
-      ip: '192.168.1.100',
-      status: 'success'
-    },
-    {
-      id: '3',
-      action: 'Failed Login Attempt',
-      timestamp: '2024-01-14T22:45:00Z',
-      ip: '203.0.113.45',
-      status: 'failed'
+  const [latestHighRisk, setLatestHighRisk] = useState<AuditLog | null>(null);
+
+  const handleRealtimeEvent = useCallback((event: AuditLog | null) => {
+    if (event && (event.riskLevel === 'high' || event.riskLevel === 'critical')) {
+      setLatestHighRisk(event);
     }
-  ]);
+  }, []);
+
+  const {
+    logs: activityLogs,
+    isLoading: activityLoading,
+    setFilters,
+    refresh: refreshActivity,
+  } = useAuditLogs({ pageSize: 5 }, { onRealtimeEvent: handleRealtimeEvent });
+
+  useEffect(() => {
+    if (user) {
+      setFilters({ userId: user.id });
+    }
+  }, [user, setFilters]);
 
   const formatTime = (ms: number) => {
     const minutes = Math.floor(ms / 60000);
@@ -48,9 +48,7 @@ const SecurityDashboard: React.FC = () => {
     return `${minutes}:${seconds.toString().padStart(2, '0')}`;
   };
 
-  const formatTimestamp = (timestamp: string) => {
-    return new Date(timestamp).toLocaleString();
-  };
+  const formatTimestamp = (timestamp: string) => new Date(timestamp).toLocaleString();
 
   const getRoleColor = (role: string) => {
     const colors = {
@@ -58,13 +56,9 @@ const SecurityDashboard: React.FC = () => {
       agent: 'bg-green-100 text-green-800',
       lender: 'bg-purple-100 text-purple-800',
       processor: 'bg-orange-100 text-orange-800',
-      admin: 'bg-red-100 text-red-800'
-    };
-    return colors[role as keyof typeof colors] || 'bg-gray-100 text-gray-800';
-  };
-
-  const getStatusColor = (status: string) => {
-    return status === 'success' ? 'text-green-600' : 'text-red-600';
+      admin: 'bg-red-100 text-red-800',
+    } as const;
+    return colors[role as keyof typeof colors] ?? 'bg-gray-100 text-gray-800';
   };
 
   if (!user) return null;
@@ -93,7 +87,7 @@ const SecurityDashboard: React.FC = () => {
                 </div>
                 <p className="text-sm text-gray-500">Time remaining</p>
               </div>
-              
+
               <div className="space-y-2">
                 <div className="flex justify-between text-sm">
                   <span>Session Health</span>
@@ -108,21 +102,11 @@ const SecurityDashboard: React.FC = () => {
               </div>
 
               <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => void refreshSession()}
-                  className="flex-1"
-                >
+                <Button variant="outline" size="sm" onClick={refreshSession} className="flex-1">
                   <RefreshCw className="h-4 w-4 mr-1" />
                   Extend
                 </Button>
-                <Button
-                  variant="destructive"
-                  size="sm"
-                  onClick={() => void logout()}
-                  className="flex-1"
-                >
+                <Button variant="destructive" size="sm" onClick={logout} className="flex-1">
                   <LogOut className="h-4 w-4 mr-1" />
                   Logout
                 </Button>
@@ -146,10 +130,10 @@ const SecurityDashboard: React.FC = () => {
                     {user.role.charAt(0).toUpperCase() + user.role.slice(1)}
                   </Badge>
                 </div>
-                
+
                 <div className="flex justify-between items-center">
                   <span className="text-sm">MFA Status</span>
-                  <Badge variant={user.mfaEnabled ? "default" : "destructive"}>
+                  <Badge variant={user.mfaEnabled ? 'default' : 'destructive'}>
                     {user.mfaEnabled ? 'Enabled' : 'Disabled'}
                   </Badge>
                 </div>
@@ -176,9 +160,7 @@ const SecurityDashboard: React.FC = () => {
                     </div>
                   ))}
                   {user.permissions.length > 3 && (
-                    <div className="text-xs text-gray-500">
-                      +{user.permissions.length - 3} more
-                    </div>
+                    <div className="text-xs text-gray-500">+{user.permissions.length - 3} more</div>
                   )}
                 </div>
               </div>
@@ -195,30 +177,38 @@ const SecurityDashboard: React.FC = () => {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-3">
-                <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-                  <div className="flex items-center gap-2 mb-1">
-                    <AlertTriangle className="h-4 w-4 text-yellow-600" />
-                    <span className="text-sm font-medium text-yellow-800">
-                      Suspicious Login
-                    </span>
+                {latestHighRisk ? (
+                  <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
+                    <div className="flex items-center gap-2 mb-1">
+                      <AlertTriangle className="h-4 w-4 text-red-600" />
+                      <span className="text-sm font-medium text-red-700">High-Risk Activity</span>
+                    </div>
+                    <p className="text-xs text-red-700">
+                      {formatActionLabel(latestHighRisk.action)} detected from IP {latestHighRisk.ipAddress}.
+                    </p>
+                    <p className="text-xs text-red-600 mt-1">
+                      {formatTimestamp(latestHighRisk.timestamp)} • {latestHighRisk.userName}
+                    </p>
                   </div>
-                  <p className="text-xs text-yellow-700">
-                    Failed login attempt from unknown IP address
-                  </p>
-                  <p className="text-xs text-yellow-600 mt-1">
-                    Yesterday at 10:45 PM
-                  </p>
-                </div>
+                ) : (
+                  <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                    <div className="flex items-center gap-2 mb-1">
+                      <AlertTriangle className="h-4 w-4 text-yellow-600" />
+                      <span className="text-sm font-medium text-yellow-800">No critical alerts</span>
+                    </div>
+                    <p className="text-xs text-yellow-700">
+                      We will notify you here as soon as a high-risk event is detected.
+                    </p>
+                  </div>
+                )}
 
                 <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
                   <div className="flex items-center gap-2 mb-1">
                     <Lock className="h-4 w-4 text-blue-600" />
-                    <span className="text-sm font-medium text-blue-800">
-                      Password Expiry
-                    </span>
+                    <span className="text-sm font-medium text-blue-800">Password Hygiene</span>
                   </div>
                   <p className="text-xs text-blue-700">
-                    Your password expires in 30 days
+                    Keep your account secure by rotating your password regularly and using MFA.
                   </p>
                   <Button variant="link" size="sm" className="p-0 h-auto text-xs">
                     Update Password
@@ -227,50 +217,64 @@ const SecurityDashboard: React.FC = () => {
               </div>
             </CardContent>
           </Card>
-
-          {/* Activity Log */}
-          <Card className="lg:col-span-3">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Activity className="h-5 w-5" />
-                Recent Activity
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {activityLogs.map((log) => (
-                  <div key={log.id} className="flex items-center justify-between p-3 border rounded-lg">
-                    <div className="flex items-center gap-3">
-                      <div className={`w-2 h-2 rounded-full ${
-                        log.status === 'success' ? 'bg-green-500' : 'bg-red-500'
-                      }`} />
-                      <div>
-                        <p className="text-sm font-medium">{log.action}</p>
-                        <p className="text-xs text-gray-500">
-                          IP: {log.ip} • {formatTimestamp(log.timestamp)}
-                        </p>
-                      </div>
-                    </div>
-                    <Badge 
-                      variant={log.status === 'success' ? 'default' : 'destructive'}
-                      className="text-xs"
-                    >
-                      {log.status}
-                    </Badge>
-                  </div>
-                ))}
-              </div>
-
-              {hasPermission('view_audit_logs') && (
-                <div className="mt-4 pt-4 border-t">
-                  <Button variant="outline" size="sm">
-                    View Full Audit Log
-                  </Button>
-                </div>
-              )}
-            </CardContent>
-          </Card>
         </div>
+
+        {/* Activity Log */}
+        <Card className="lg:col-span-3 mt-6">
+          <CardHeader className="flex items-center justify-between">
+            <CardTitle className="flex items-center gap-2">
+              <Activity className="h-5 w-5" />
+              Recent Activity
+            </CardTitle>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" onClick={refreshActivity} disabled={activityLoading}>
+                <RefreshCw className={`h-4 w-4 mr-2 ${activityLoading ? 'animate-spin' : ''}`} />
+                Refresh
+              </Button>
+              <Input placeholder="Filter by resource" disabled className="hidden lg:block w-48" />
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {activityLogs.map((log) => (
+                <div key={log.id} className="flex items-center justify-between p-3 border rounded-lg">
+                  <div className="flex items-center gap-3">
+                    <div
+                      className={`w-2 h-2 rounded-full ${
+                        log.status === 'success' ? 'bg-green-500' : log.status === 'blocked' ? 'bg-red-500' : 'bg-yellow-500'
+                      }`}
+                    />
+                    <div>
+                      <p className="text-sm font-medium">{formatActionLabel(log.action)}</p>
+                      <p className="text-xs text-gray-500">
+                        IP: {log.ipAddress} • {formatTimestamp(log.timestamp)}
+                      </p>
+                    </div>
+                  </div>
+                  <Badge variant={log.status === 'success' ? 'default' : 'destructive'} className="text-xs">
+                    {log.status}
+                  </Badge>
+                </div>
+              ))}
+            </div>
+
+            {!activityLoading && activityLogs.length === 0 && (
+              <div className="text-center py-6 text-gray-500">No recent activity found for your account.</div>
+            )}
+
+            {activityLoading && (
+              <div className="text-center py-6 text-gray-500">Loading activity…</div>
+            )}
+
+            {hasPermission('view_audit_logs') && (
+              <div className="mt-4 pt-4 border-t">
+                <Button variant="outline" size="sm">
+                  View Full Audit Log
+                </Button>
+              </div>
+            )}
+          </CardContent>
+        </Card>
       </div>
     </div>
   );

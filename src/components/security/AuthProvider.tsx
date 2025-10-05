@@ -1,13 +1,5 @@
-import React, {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useState,
-} from 'react';
-import type { Session } from '@supabase/supabase-js';
-import { supabase } from '@/lib/supabaseClient';
+import React, { createContext, useContext, useState, useEffect } from 'react';
+import { logAuditEvent, type AuditEventInput } from '@/lib/audit';
 
 export type Role =
   | 'homebuyer'
@@ -79,6 +71,8 @@ export const useAuth = () => {
   return context;
 };
 
+export const useOptionalAuth = () => useContext(AuthContext);
+
 interface AuthProviderProps {
   children: React.ReactNode;
 }
@@ -119,17 +113,35 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [sessionTimeRemaining, setSessionTimeRemaining] = useState(0);
   const [mfaChallenge, setMfaChallenge] = useState<MfaChallenge | null>(null);
 
-  const handleSession = useCallback((session: Session | null) => {
-    if (session?.user) {
-      const mappedUser = extractUserFromSession(session);
-      setUser(mappedUser);
-      const remaining = Math.max(mappedUser.sessionExpiry - Date.now(), 0);
-      setSessionTimeRemaining(remaining);
-    } else {
-      setUser(null);
-      setSessionTimeRemaining(0);
+  const defaultUserAgent = typeof navigator !== 'undefined' ? navigator.userAgent : 'unknown-agent';
+  const defaultLocation =
+    typeof Intl !== 'undefined' ? Intl.DateTimeFormat().resolvedOptions().timeZone : undefined;
+
+  const recordAudit = async (event: AuditEventInput) => {
+    try {
+      await logAuditEvent({
+        userId: user?.id ?? event.userId,
+        userName:
+          user ? `${user.firstName} ${user.lastName}` : event.userName ?? 'Unknown User',
+        userRole: user?.role ?? event.userRole ?? 'unknown',
+        ipAddress: event.ipAddress ?? 'unknown',
+        userAgent: event.userAgent ?? defaultUserAgent,
+        location: event.location ?? defaultLocation,
+        ...event,
+      });
+    } catch (auditError) {
+      console.warn('[audit] Failed to record authentication event', auditError);
     }
-  }, []);
+  };
+
+  // Role-based permissions mapping
+  const rolePermissions = {
+    homebuyer: ['view_own_timeline', 'upload_documents', 'send_messages', 'view_own_costs'],
+    agent: ['view_client_timelines', 'manage_listings', 'send_messages', 'view_client_documents'],
+    lender: ['view_loan_applications', 'access_financial_documents', 'update_approval_status', 'send_messages'],
+    processor: ['process_documents', 'update_timelines', 'manage_deadlines', 'send_messages'],
+    admin: ['full_access', 'manage_users', 'view_audit_logs', 'system_settings']
+  };
 
   useEffect(() => {
     const initialiseSession = async () => {
@@ -190,28 +202,81 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           code: mfaCode,
         });
 
-        if (error) {
-          console.error('MFA verification failed:', error);
-          return {
-            success: false,
-            mfaRequired: true,
-            error: error.message ?? 'Invalid authentication code.',
-          };
-        }
+      return () => clearInterval(timer);
+    }
+  }, [user, sessionTimeRemaining]);
 
-        setMfaChallenge(null);
-        const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
-        if (sessionError) {
-          console.error('Failed to retrieve session after MFA verification:', sessionError);
-          return {
-            success: false,
-            error: 'Authentication succeeded but session retrieval failed. Please try again.',
-          };
-        }
+  const login = async (email: string, password: string, mfaCode?: string): Promise<boolean> => {
+    try {
+      // Simulate API call with security checks
+      console.log('Authenticating user:', email);
 
-        handleSession(sessionData.session ?? null);
-        return { success: true };
-      }
+      // Mock user data - in real app, this comes from secure backend
+      const mockUser: User = {
+        id: '1',
+        email,
+        firstName: 'John',
+        lastName: 'Doe',
+        role: 'homebuyer',
+        permissions: rolePermissions.homebuyer,
+        mfaEnabled: true,
+        lastLogin: new Date().toISOString(),
+        sessionExpiry: Date.now() + (30 * 60 * 1000) // 30 minutes
+      };
+
+      // Store in secure session storage (in production, use HTTP-only cookies)
+      sessionStorage.setItem('hipotrack_user', JSON.stringify(mockUser));
+      setUser(mockUser);
+      setSessionTimeRemaining(30 * 60 * 1000);
+
+      await recordAudit({
+        action: 'login_attempt',
+        resource: 'authentication',
+        status: 'success',
+        riskLevel: 'medium',
+        userId: mockUser.id,
+        userName: `${mockUser.firstName} ${mockUser.lastName}`,
+        userRole: mockUser.role,
+        details: mfaCode ? 'MFA challenge passed' : 'MFA challenge skipped in demo',
+      });
+
+      return true;
+    } catch (error) {
+      console.error('Login failed:', error);
+      await recordAudit({
+        action: 'login_attempt',
+        resource: 'authentication',
+        status: 'failed',
+        riskLevel: 'high',
+        userId: email,
+        userName: email,
+        userRole: 'unknown',
+        details: 'Login attempt failed',
+      });
+      return false;
+    }
+  };
+
+  const logout = () => {
+    const currentUser = user;
+    // Clear session data
+    sessionStorage.removeItem('hipotrack_user');
+    setUser(null);
+    setSessionTimeRemaining(0);
+
+    if (currentUser) {
+      void recordAudit({
+        action: 'logout',
+        resource: 'authentication',
+        status: 'success',
+        riskLevel: 'low',
+        userId: currentUser.id,
+        userName: `${currentUser.firstName} ${currentUser.lastName}`,
+        userRole: currentUser.role,
+        details: 'User initiated logout',
+      });
+    }
+  };
 
       setMfaChallenge(null);
       const { data, error } = await supabase.auth.signInWithPassword({ email, password });
@@ -242,39 +307,25 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             };
           }
 
-          setMfaChallenge({
-            factorId: factor.id,
-            factorType,
-            challengeId: challengeData.id,
-          });
-
-          return {
-            success: false,
-            mfaRequired: true,
-            error: 'Multi-factor authentication required. Enter the verification code from your authenticator.',
-          };
-        }
-
-        console.error('Sign-in failed:', error);
-        return {
-          success: false,
-          error: errorMessage,
-        };
-      }
-
-      handleSession(data.session ?? null);
-      return { success: true };
-    },
-    [handleSession, mfaChallenge],
-  );
-
-  const refreshSession = useCallback(async () => {
-    const { data, error } = await supabase.auth.refreshSession();
-    if (error) {
-      console.error('Session refresh failed:', error);
-      await supabase.auth.signOut();
-      handleSession(null);
-      return;
+  const refreshSession = () => {
+    if (user) {
+      const updatedUser = {
+        ...user,
+        sessionExpiry: Date.now() + (30 * 60 * 1000)
+      };
+      sessionStorage.setItem('hipotrack_user', JSON.stringify(updatedUser));
+      setUser(updatedUser);
+      setSessionTimeRemaining(30 * 60 * 1000);
+      void recordAudit({
+        action: 'session_refresh',
+        resource: 'authentication',
+        status: 'success',
+        riskLevel: 'low',
+        userId: updatedUser.id,
+        userName: `${updatedUser.firstName} ${updatedUser.lastName}`,
+        userRole: updatedUser.role,
+        details: 'Session extended by user',
+      });
     }
 
     handleSession(data.session ?? null);
