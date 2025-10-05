@@ -4,16 +4,9 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { FileText, Upload, Download, Eye, Clock, CheckCircle, AlertCircle } from 'lucide-react';
+import type { Tables } from '@/types/supabase';
 
-interface Document {
-  id: string;
-  name: string;
-  type: string;
-  status: 'pending' | 'uploaded' | 'approved' | 'rejected';
-  uploadDate?: string;
-  size?: string;
-  required: boolean;
-}
+type Document = Tables<'document_requirements'>;
 
 const Documents: React.FC = () => {
   const documents: Document[] = [
@@ -40,6 +33,8 @@ const Documents: React.FC = () => {
       name: 'Property Appraisal',
       type: 'Property',
       status: 'pending',
+      uploadDate: null,
+      size: null,
       required: true
     },
     {
@@ -62,7 +57,7 @@ const Documents: React.FC = () => {
     }
   ];
 
-  const getStatusIcon = (status: string) => {
+  const getStatusIcon = (status: Document['status']) => {
     switch (status) {
       case 'approved':
         return <CheckCircle className="h-4 w-4 text-green-500" />;
@@ -75,16 +70,16 @@ const Documents: React.FC = () => {
     }
   };
 
-  const getStatusBadge = (status: string) => {
-    const variants = {
+  const getStatusBadge = (status: Document['status']) => {
+    const variants: Record<Document['status'], string> = {
       approved: 'bg-green-100 text-green-800',
       uploaded: 'bg-yellow-100 text-yellow-800',
       rejected: 'bg-red-100 text-red-800',
       pending: 'bg-gray-100 text-gray-800'
     };
-    
+
     return (
-      <Badge className={variants[status as keyof typeof variants]}>
+      <Badge className={variants[status]}>
         {status.charAt(0).toUpperCase() + status.slice(1)}
       </Badge>
     );

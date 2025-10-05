@@ -25,30 +25,11 @@ import {
 import { logAuditEvent, type AuditEventInput } from "@/lib/audit";
 import { useOptionalAuth } from "./security/AuthProvider";
 
-interface Message {
-  id: string;
-  sender: {
-    name: string;
-    avatar?: string;
-    role: string;
-  };
-  content: string;
-  timestamp: string;
-  attachments?: Array<{
-    name: string;
-    type: string;
-    url: string;
-  }>;
-  topic?: string;
-}
+type Message = Tables<"messages">;
 
 interface MessagingSystemProps {
   messages?: Message[];
-  currentUser?: {
-    name: string;
-    avatar?: string;
-    role: string;
-  };
+  currentUser?: MessageSender;
   topics?: string[];
 }
 
@@ -183,7 +164,7 @@ const MessagingSystem: React.FC<MessagingSystemProps> = ({
                 <div key={message.id} className="flex gap-3">
                   <Avatar className="h-8 w-8">
                     <AvatarImage
-                      src={message.sender.avatar}
+                      src={message.sender.avatar ?? undefined}
                       alt={message.sender.name}
                     />
                     <AvatarFallback>
@@ -255,7 +236,7 @@ const MessagingSystem: React.FC<MessagingSystemProps> = ({
 };
 
 // Default mock data
-const defaultCurrentUser = {
+const defaultCurrentUser: MessageSender = {
   name: "Juan Pérez",
   role: "Comprador",
   avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Juan",
@@ -280,7 +261,9 @@ const defaultMessages: Message[] = [
     content:
       "Hola Juan, necesito que subas los documentos de ingresos actualizados para continuar con el proceso de aprobación.",
     timestamp: "Hoy, 10:30 AM",
+    attachments: null,
     topic: "Documentos",
+    participants: null,
   },
   {
     id: "2",
@@ -300,6 +283,7 @@ const defaultMessages: Message[] = [
         url: "#",
       },
     ],
+    participants: null,
   },
   {
     id: "3",
@@ -310,7 +294,9 @@ const defaultMessages: Message[] = [
     },
     content: "Ya subí los documentos solicitados. ¿Hay algo más que necesiten?",
     timestamp: "Ayer, 4:20 PM",
+    attachments: null,
     topic: "Documentos",
+    participants: null,
   },
   {
     id: "4",
@@ -322,7 +308,9 @@ const defaultMessages: Message[] = [
     content:
       "Hemos recibido tus documentos y están siendo revisados. Te notificaremos cuando estén aprobados.",
     timestamp: "Ayer, 5:15 PM",
+    attachments: null,
     topic: "Aprobación",
+    participants: null,
   },
   {
     id: "5",
@@ -334,7 +322,9 @@ const defaultMessages: Message[] = [
     content:
       "Recuerda que necesitamos los estados de cuenta bancarios de los últimos 3 meses.",
     timestamp: "Hoy, 9:00 AM",
+    attachments: null,
     topic: "Documentos",
+    participants: null,
   },
 ];
 
