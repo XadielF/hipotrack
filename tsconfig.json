@@ -16,7 +16,8 @@
 
     "strict": false,
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+      "tempo-routes": ["./src/tempo-routes"]
     }
   },
   "include": ["src"],
