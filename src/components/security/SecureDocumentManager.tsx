@@ -7,11 +7,13 @@ import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Separator } from '@/components/ui/separator';
-import { 
-  FileText, 
-  Upload, 
-  Download, 
-  Eye, 
+import { logAuditEvent, type AuditEventInput } from '@/lib/audit';
+import { useOptionalAuth } from './AuthProvider';
+import {
+  FileText,
+  Upload,
+  Download,
+  Eye,
   Shield, 
   Lock,
   Scan,
@@ -21,22 +23,10 @@ import {
   Trash2
 } from 'lucide-react';
 
-interface SecureDocument {
-  id: string;
-  name: string;
-  type: string;
-  status: 'pending' | 'uploaded' | 'scanning' | 'approved' | 'rejected';
-  uploadDate?: string;
-  size?: string;
-  encryptionStatus: 'encrypted' | 'processing' | 'failed';
-  accessLevel: 'public' | 'team' | 'restricted';
-  lastAccessed?: string;
-  accessCount: number;
-  virusScanStatus: 'pending' | 'clean' | 'infected' | 'failed';
-  retentionDate?: string;
-}
+type SecureDocument = Tables<'secure_documents'>;
 
 const SecureDocumentManager: React.FC = () => {
+  const auth = useOptionalAuth();
   const [documents, setDocuments] = useState<SecureDocument[]>([
     {
       id: '1',
@@ -71,15 +61,42 @@ const SecureDocumentManager: React.FC = () => {
       name: 'Property Appraisal Report',
       type: 'Property',
       status: 'pending',
+      uploadDate: null,
+      size: null,
       encryptionStatus: 'processing',
       accessLevel: 'restricted',
+      lastAccessed: null,
       accessCount: 0,
-      virusScanStatus: 'pending'
+      virusScanStatus: 'pending',
+      retentionDate: null
     }
   ]);
 
   const [uploadProgress, setUploadProgress] = useState(0);
   const [isUploading, setIsUploading] = useState(false);
+
+  const defaultUserAgent = typeof navigator !== 'undefined' ? navigator.userAgent : 'unknown-agent';
+  const defaultLocation =
+    typeof Intl !== 'undefined' ? Intl.DateTimeFormat().resolvedOptions().timeZone : undefined;
+
+  const recordAudit = async (event: AuditEventInput) => {
+    try {
+      await logAuditEvent({
+        userId: auth?.user?.id ?? event.userId ?? 'unknown',
+        userName:
+          auth?.user
+            ? `${auth.user.firstName} ${auth.user.lastName}`
+            : event.userName ?? 'Unknown User',
+        userRole: auth?.user?.role ?? event.userRole ?? 'unknown',
+        userAgent: event.userAgent ?? defaultUserAgent,
+        location: event.location ?? defaultLocation,
+        ipAddress: event.ipAddress ?? 'unknown',
+        ...event,
+      });
+    } catch (error) {
+      console.warn('[audit] Unable to record document event', error);
+    }
+  };
 
   const getStatusIcon = (status: string) => {
     switch (status) {
@@ -94,56 +111,58 @@ const SecureDocumentManager: React.FC = () => {
     }
   };
 
-  const getStatusBadge = (status: string) => {
-    const variants = {
+  const getStatusBadge = (status: SecureDocument['status']) => {
+    const variants: Record<SecureDocument['status'], string> = {
       approved: 'bg-green-100 text-green-800',
       scanning: 'bg-blue-100 text-blue-800',
       rejected: 'bg-red-100 text-red-800',
       pending: 'bg-gray-100 text-gray-800',
       uploaded: 'bg-yellow-100 text-yellow-800'
     };
-    
+
     return (
-      <Badge className={variants[status as keyof typeof variants]}>
+      <Badge className={variants[status]}>
         {status.charAt(0).toUpperCase() + status.slice(1)}
       </Badge>
     );
   };
 
-  const getEncryptionBadge = (status: string) => {
-    const variants = {
+  const getEncryptionBadge = (
+    status: SecureDocument['encryptionStatus']
+  ) => {
+    const variants: Record<SecureDocument['encryptionStatus'], string> = {
       encrypted: 'bg-green-100 text-green-800 border-green-200',
       processing: 'bg-yellow-100 text-yellow-800 border-yellow-200',
       failed: 'bg-red-100 text-red-800 border-red-200'
     };
-    
+
     return (
-      <Badge variant="outline" className={variants[status as keyof typeof variants]}>
+      <Badge variant="outline" className={variants[status]}>
         <Lock className="h-3 w-3 mr-1" />
         {status === 'encrypted' ? 'AES-256' : status}
       </Badge>
     );
   };
 
-  const getAccessLevelColor = (level: string) => {
-    const colors = {
+  const getAccessLevelColor = (level: SecureDocument['accessLevel']) => {
+    const colors: Record<SecureDocument['accessLevel'], string> = {
       public: 'text-green-600',
       team: 'text-blue-600',
       restricted: 'text-red-600'
     };
-    return colors[level as keyof typeof colors];
+    return colors[level];
   };
 
-  const getVirusScanBadge = (status: string) => {
-    const variants = {
+  const getVirusScanBadge = (status: SecureDocument['virusScanStatus']) => {
+    const variants: Record<SecureDocument['virusScanStatus'], string> = {
       clean: 'bg-green-100 text-green-800',
       pending: 'bg-gray-100 text-gray-800',
       infected: 'bg-red-100 text-red-800',
       failed: 'bg-yellow-100 text-yellow-800'
     };
-    
+
     return (
-      <Badge className={variants[status as keyof typeof variants]} variant="outline">
+      <Badge className={variants[status]} variant="outline">
         <Shield className="h-3 w-3 mr-1" />
         {status === 'clean' ? 'Virus Free' : status}
       </Badge>
@@ -151,15 +170,38 @@ const SecureDocumentManager: React.FC = () => {
   };
 
   const handleUpload = () => {
+    if (isUploading) return;
+
+    const newDocument: SecureDocument = {
+      id: `doc_${Date.now()}`,
+      name: `Secure Upload ${documents.length + 1}`,
+      type: 'Supporting',
+      status: 'uploaded',
+      uploadDate: new Date().toISOString(),
+      size: '1.2 MB',
+      encryptionStatus: 'processing',
+      accessLevel: 'restricted',
+      accessCount: 0,
+      virusScanStatus: 'pending',
+    };
+
     setIsUploading(true);
     setUploadProgress(0);
-    
-    // Simulate upload progress
+
     const interval = setInterval(() => {
       setUploadProgress(prev => {
         if (prev >= 100) {
           clearInterval(interval);
           setIsUploading(false);
+          setDocuments(current => [newDocument, ...current]);
+          void recordAudit({
+            action: 'document_upload',
+            resource: newDocument.name,
+            resourceId: newDocument.id,
+            status: 'success',
+            riskLevel: 'high',
+            details: 'Document uploaded via secure manager',
+          });
           return 100;
         }
         return prev + 10;
@@ -168,13 +210,28 @@ const SecureDocumentManager: React.FC = () => {
   };
 
   const handleDownload = (docId: string) => {
-    console.log('Secure download initiated for document:', docId);
-    // In real implementation, this would create an audit log entry
+    const document = documents.find(doc => doc.id === docId);
+    void recordAudit({
+      action: 'document_download',
+      resource: document?.name ?? 'Document',
+      resourceId: docId,
+      status: 'success',
+      riskLevel: document?.accessLevel === 'restricted' ? 'high' : 'medium',
+      details: 'Secure download initiated',
+    });
   };
 
   const handleDelete = (docId: string) => {
+    const document = documents.find(doc => doc.id === docId);
     setDocuments(prev => prev.filter(doc => doc.id !== docId));
-    console.log('Document securely deleted:', docId);
+    void recordAudit({
+      action: 'document_delete',
+      resource: document?.name ?? 'Document',
+      resourceId: docId,
+      status: 'success',
+      riskLevel: 'high',
+      details: 'Document securely deleted',
+    });
   };
 
   const formatDate = (dateString: string) => {

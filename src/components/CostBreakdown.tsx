@@ -5,6 +5,7 @@ import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
 import { InfoIcon, DollarSign, AlertCircle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import type { TablesInsert } from "@/types/supabase";
 import {
   Tooltip,
   TooltipContent,
@@ -12,12 +13,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 
-interface CostItem {
-  name: string;
-  amount: number;
-  description?: string;
-  isPaid?: boolean;
-}
+type CostItem = TablesInsert<"cost_items">;
 
 interface CostBreakdownProps {
   loanAmount?: number;

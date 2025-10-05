@@ -58,6 +58,33 @@ const MessagingSystem: React.FC<MessagingSystemProps> = ({ currentUser }) => {
       ) ?? null,
     [conversations, selectedConversationId],
   );
+  const auth = useOptionalAuth();
+
+  const defaultUserAgent =
+    typeof navigator !== "undefined" ? navigator.userAgent : "unknown-agent";
+  const defaultLocation =
+    typeof Intl !== "undefined"
+      ? Intl.DateTimeFormat().resolvedOptions().timeZone
+      : undefined;
+
+  const recordAudit = async (event: AuditEventInput) => {
+    try {
+      await logAuditEvent({
+        userId: auth?.user?.id ?? event.userId ?? currentUser.name,
+        userName:
+          auth?.user
+            ? `${auth.user.firstName} ${auth.user.lastName}`
+            : event.userName ?? currentUser.name,
+        userRole: auth?.user?.role ?? event.userRole ?? currentUser.role,
+        userAgent: event.userAgent ?? defaultUserAgent,
+        location: event.location ?? defaultLocation,
+        ipAddress: event.ipAddress ?? "unknown",
+        ...event,
+      });
+    } catch (error) {
+      console.warn("[audit] Failed to record messaging event", error);
+    }
+  };
 
   const topics = useMemo(() => {
     const topicSet = new Set<string>();

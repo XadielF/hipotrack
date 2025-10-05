@@ -130,8 +130,9 @@ Before you begin, ensure you have the following installed:
 2. **Set up your database schema** (see `/database` folder for SQL scripts)
 3. **Configure Row Level Security** policies
 4. **Set up authentication** providers
-5. **Generate TypeScript types**:
+5. **Generate TypeScript types** (requires the Supabase CLI and the `SUPABASE_PROJECT_ID` environment variable):
    ```bash
+   export SUPABASE_PROJECT_ID=your_project_id
    npm run types:supabase
    ```
 
