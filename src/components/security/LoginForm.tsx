@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -23,7 +23,7 @@ interface LoginFormProps {
 }
 
 const LoginForm: React.FC<LoginFormProps> = ({ onSuccess }) => {
-  const { login } = useAuth();
+  const { login, mfaRequired, resetMfa } = useAuth();
   const [formData, setFormData] = useState({
     email: '',
     password: '',
@@ -34,6 +34,13 @@ const LoginForm: React.FC<LoginFormProps> = ({ onSuccess }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [loginAttempts, setLoginAttempts] = useState(0);
+
+  useEffect(() => {
+    setShowMFA(mfaRequired);
+    if (!mfaRequired) {
+      setFormData((prev) => ({ ...prev, mfaCode: '' }));
+    }
+  }, [mfaRequired]);
 
   const passwordStrength = (password: string) => {
     let strength = 0;
@@ -79,29 +86,31 @@ const LoginForm: React.FC<LoginFormProps> = ({ onSuccess }) => {
     }
 
     try {
-      // First step: email/password
-      if (!showMFA) {
-        // Simulate checking credentials
-        if (formData.email && formData.password) {
-          setShowMFA(true);
-          setLoading(false);
-          return;
-        }
+      const result = await login(
+        formData.email,
+        formData.password,
+        showMFA ? formData.mfaCode : undefined,
+      );
+
+      if (result.success) {
+        onSuccess?.();
+        return;
       }
 
-      // Second step: MFA verification
-      const success = await login(formData.email, formData.password, formData.mfaCode);
-      
-      if (success) {
-        onSuccess?.();
-      } else {
-        setLoginAttempts(prev => prev + 1);
-        setError('Invalid credentials or MFA code. Please try again.');
-        setShowMFA(false);
+      if (result.mfaRequired) {
+        if (showMFA) {
+          setLoginAttempts((prev) => prev + 1);
+        }
+        setShowMFA(true);
+        setError(result.error ?? 'Multi-factor authentication required. Enter your code.');
+        return;
       }
+
+      setLoginAttempts((prev) => prev + 1);
+      setError(result.error ?? 'Login failed. Please try again.');
     } catch (err) {
-      setError('Login failed. Please try again.');
-      setLoginAttempts(prev => prev + 1);
+      setLoginAttempts((prev) => prev + 1);
+      setError(err instanceof Error ? err.message : 'Login failed. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -234,27 +243,30 @@ const LoginForm: React.FC<LoginFormProps> = ({ onSuccess }) => {
             )}
 
             {/* Submit Button */}
-            <Button 
-              type="submit" 
-              className="w-full" 
-              disabled={loading || loginAttempts >= 5}
+            <Button
+              type="submit"
+              className="w-full"
+              disabled={
+                loading ||
+                loginAttempts >= 5 ||
+                (showMFA && formData.mfaCode.length < 6)
+              }
             >
-              {loading ? (
-                'Authenticating...'
-              ) : showMFA ? (
-                'Verify & Login'
-              ) : (
-                'Continue to MFA'
-              )}
+              {loading ? 'Authenticating...' : showMFA ? 'Verify & Login' : 'Sign In'}
             </Button>
 
             {/* Back Button for MFA */}
             {showMFA && (
-              <Button 
-                type="button" 
-                variant="outline" 
+              <Button
+                type="button"
+                variant="outline"
                 className="w-full"
-                onClick={() => setShowMFA(false)}
+                onClick={() => {
+                  resetMfa();
+                  setShowMFA(false);
+                  setFormData((prev) => ({ ...prev, mfaCode: '' }));
+                  setError('');
+                }}
               >
                 Back to Login
               </Button>

@@ -8,29 +8,9 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { User, Mail, Phone, MapPin, Building, Calendar, Edit, Save, X } from 'lucide-react';
+import type { Tables } from '@/types/supabase';
 
-interface UserProfile {
-  id: string;
-  firstName: string;
-  lastName: string;
-  email: string;
-  phone: string;
-  address: {
-    street: string;
-    city: string;
-    state: string;
-    zipCode: string;
-  };
-  employment: {
-    company: string;
-    position: string;
-    startDate: string;
-    annualIncome: string;
-  };
-  avatar?: string;
-  role: string;
-  joinDate: string;
-}
+type UserProfile = Tables<'profiles'>;
 
 const Profile: React.FC = () => {
   const [isEditing, setIsEditing] = useState(false);
@@ -108,7 +88,7 @@ const Profile: React.FC = () => {
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-4">
                 <Avatar className="h-20 w-20">
-                  <AvatarImage src={currentProfile.avatar} />
+                  <AvatarImage src={currentProfile.avatar ?? undefined} />
                   <AvatarFallback className="text-lg">
                     {currentProfile.firstName[0]}{currentProfile.lastName[0]}
                   </AvatarFallback>

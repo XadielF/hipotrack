@@ -1,8 +1,7 @@
-import React, { useState } from "react";
+import React, { useMemo, useRef, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
-import { Input } from "./ui/input";
 import { Button } from "./ui/button";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
+import { Tabs, TabsList, TabsTrigger } from "./ui/tabs";
 import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
 import { ScrollArea } from "./ui/scroll-area";
 import { Textarea } from "./ui/textarea";
@@ -13,6 +12,8 @@ import {
   UserIcon,
   Users2Icon,
   FilterIcon,
+  Loader2,
+  AlertCircle,
 } from "lucide-react";
 import { Separator } from "./ui/separator";
 import {
@@ -22,81 +23,172 @@ import {
   SelectTrigger,
   SelectValue,
 } from "./ui/select";
-
-interface Message {
-  id: string;
-  sender: {
-    name: string;
-    avatar?: string;
-    role: string;
-  };
-  content: string;
-  timestamp: string;
-  attachments?: Array<{
-    name: string;
-    type: string;
-    url: string;
-  }>;
-  topic?: string;
-}
+import { Alert, AlertDescription } from "./ui/alert";
+import { useMessaging } from "@/hooks/useMessaging";
+import type { MessagingUser } from "@/hooks/useMessaging";
 
 interface MessagingSystemProps {
-  messages?: Message[];
-  currentUser?: {
-    name: string;
-    avatar?: string;
-    role: string;
-  };
-  topics?: string[];
+  currentUser: MessagingUser;
 }
 
-const MessagingSystem: React.FC<MessagingSystemProps> = ({
-  messages = defaultMessages,
-  currentUser = defaultCurrentUser,
-  topics = defaultTopics,
-}) => {
+const MessagingSystem: React.FC<MessagingSystemProps> = ({ currentUser }) => {
   const [messageText, setMessageText] = useState("");
   const [activeTab, setActiveTab] = useState("all");
-  const [selectedTopic, setSelectedTopic] = useState<string | undefined>(
-    undefined,
+  const [selectedTopic, setSelectedTopic] = useState("all");
+  const [pendingAttachments, setPendingAttachments] = useState<File[]>([]);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  const {
+    conversations,
+    messages,
+    selectedConversationId,
+    selectConversation,
+    loadingConversations,
+    loadingMessages,
+    sending,
+    error,
+    clearError,
+    sendMessage,
+  } = useMessaging({ currentUser });
+
+  const currentConversation = useMemo(
+    () =>
+      conversations.find(
+        (conversation) => conversation.id === selectedConversationId,
+      ) ?? null,
+    [conversations, selectedConversationId],
   );
+  const auth = useOptionalAuth();
 
-  const filteredMessages = messages
-    .filter((message) => {
-      if (activeTab === "all") return true;
-      if (activeTab === "direct" && message.sender.role !== currentUser.role)
-        return true;
-      if (activeTab === "topics" && message.topic) return true;
-      return false;
-    })
-    .filter((message) => {
-      if (!selectedTopic || selectedTopic === "all") return true;
-      return message.topic === selectedTopic;
-    });
+  const defaultUserAgent =
+    typeof navigator !== "undefined" ? navigator.userAgent : "unknown-agent";
+  const defaultLocation =
+    typeof Intl !== "undefined"
+      ? Intl.DateTimeFormat().resolvedOptions().timeZone
+      : undefined;
 
-  const handleSendMessage = () => {
-    if (messageText.trim()) {
-      // In a real app, this would send the message to a backend
-      console.log("Sending message:", messageText);
-      setMessageText("");
+  const recordAudit = async (event: AuditEventInput) => {
+    try {
+      await logAuditEvent({
+        userId: auth?.user?.id ?? event.userId ?? currentUser.name,
+        userName:
+          auth?.user
+            ? `${auth.user.firstName} ${auth.user.lastName}`
+            : event.userName ?? currentUser.name,
+        userRole: auth?.user?.role ?? event.userRole ?? currentUser.role,
+        userAgent: event.userAgent ?? defaultUserAgent,
+        location: event.location ?? defaultLocation,
+        ipAddress: event.ipAddress ?? "unknown",
+        ...event,
+      });
+    } catch (error) {
+      console.warn("[audit] Failed to record messaging event", error);
     }
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      handleSendMessage();
+  const topics = useMemo(() => {
+    const topicSet = new Set<string>();
+    messages.forEach((message) => {
+      if (message.topic) {
+        topicSet.add(message.topic);
+      }
+    });
+    return Array.from(topicSet);
+  }, [messages]);
+
+  const filteredMessages = useMemo(() => {
+    return messages
+      .filter((message) => {
+        if (activeTab === "all") return true;
+        if (activeTab === "direct") return !message.sender.isCurrentUser;
+        if (activeTab === "topics") return Boolean(message.topic);
+        return true;
+      })
+      .filter((message) => {
+        if (selectedTopic === "all") return true;
+        return message.topic === selectedTopic;
+      });
+  }, [messages, activeTab, selectedTopic]);
+
+  const handleSendMessage = async () => {
+    if (!messageText.trim() || !selectedConversationId) return;
+
+    await sendMessage({
+      conversationId: selectedConversationId,
+      content: messageText,
+      topic: selectedTopic !== "all" ? selectedTopic : undefined,
+      attachments: pendingAttachments,
+    });
+
+    setMessageText("");
+    setPendingAttachments([]);
+  };
+
+  const handleKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (event.key === "Enter" && !event.shiftKey) {
+      event.preventDefault();
+      void handleSendMessage();
     }
+  };
+
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(event.target.files ?? []);
+    if (files.length) {
+      setPendingAttachments((current) => [...current, ...files]);
+    }
+    event.target.value = "";
+  };
+
+  const removeAttachment = (index: number) => {
+    setPendingAttachments((current) => current.filter((_, idx) => idx !== index));
   };
 
   return (
     <Card className="w-full bg-white shadow-md">
-      <CardHeader className="pb-3">
-        <div className="flex justify-between items-center">
-          <CardTitle className="text-xl font-bold">Mensajes</CardTitle>
-          <div className="flex items-center gap-2">
-            <Select value={selectedTopic} onValueChange={setSelectedTopic}>
-              <SelectTrigger className="w-[180px]">
+      <CardHeader className="pb-4 space-y-4">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <CardTitle className="text-xl font-bold">Mensajes</CardTitle>
+            <p className="text-sm text-muted-foreground">
+              {loadingConversations
+                ? "Cargando conversaciones..."
+                : `${conversations.length} conversaciones`}
+            </p>
+          </div>
+          <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
+            <Select
+              value={selectedConversationId ?? ""}
+              onValueChange={(value) => selectConversation(value)}
+              disabled={loadingConversations || conversations.length === 0}
+            >
+              <SelectTrigger className="w-full sm:w-[220px]">
+                <SelectValue placeholder="Selecciona una conversación" />
+              </SelectTrigger>
+              <SelectContent>
+                {conversations.map((conversation) => {
+                  const participantNames = conversation.participants
+                    .filter((participant) => !participant.isCurrentUser)
+                    .map((participant) => participant.displayName)
+                    .join(", ")
+
+                  const label =
+                    conversation.title ??
+                    (participantNames ? participantNames : "Conversación")
+
+                  return (
+                    <SelectItem key={conversation.id} value={conversation.id}>
+                      {label}
+                    </SelectItem>
+                  )
+                })}
+              </SelectContent>
+            </Select>
+            <Select
+              value={selectedTopic}
+              onValueChange={setSelectedTopic}
+              disabled={topics.length === 0}
+            >
+              <SelectTrigger className="w-full sm:w-[180px]">
                 <SelectValue placeholder="Filtrar por tema" />
               </SelectTrigger>
               <SelectContent>
@@ -114,95 +206,209 @@ const MessagingSystem: React.FC<MessagingSystemProps> = ({
           </div>
         </div>
         <Tabs
-          defaultValue="all"
-          className="w-full"
           value={activeTab}
           onValueChange={setActiveTab}
+          className="w-full"
         >
           <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="all" className="flex items-center gap-2">
               <Users2Icon className="h-4 w-4" /> Todos
             </TabsTrigger>
             <TabsTrigger value="direct" className="flex items-center gap-2">
-              <UserIcon className="h-4 w-4" /> Directos
+              <UserIcon className="h-4 w-4" /> Equipo
             </TabsTrigger>
             <TabsTrigger value="topics" className="flex items-center gap-2">
               # Temas
             </TabsTrigger>
           </TabsList>
         </Tabs>
+        {error && (
+          <Alert variant="destructive" className="flex items-start gap-3">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription className="flex-1">
+              {error}
+              <Button
+                variant="link"
+                className="h-auto p-0 ml-2"
+                onClick={clearError}
+              >
+                Entendido
+              </Button>
+            </AlertDescription>
+          </Alert>
+        )}
       </CardHeader>
-      <CardContent>
-        <ScrollArea className="h-[350px] pr-4">
+      <CardContent className="space-y-4">
+        <div className="flex items-center justify-between">
+          <div className="text-sm text-muted-foreground">
+            {currentConversation
+              ? (() => {
+                  const participantNames = currentConversation.participants
+                    .filter((participant) => !participant.isCurrentUser)
+                    .map((participant) => participant.displayName)
+                    .join(", ")
+                  return participantNames || "Conversación"
+                })()
+              : "Selecciona una conversación"}
+          </div>
+          {sending && (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin" /> Enviando...
+            </div>
+          )}
+        </div>
+        <ScrollArea className="h-[320px] pr-4">
           <div className="flex flex-col gap-4">
-            {filteredMessages.length > 0 ? (
+            {loadingMessages ? (
+              <div className="flex justify-center py-12 text-muted-foreground">
+                <Loader2 className="h-6 w-6 animate-spin" />
+              </div>
+            ) : filteredMessages.length > 0 ? (
               filteredMessages.map((message) => (
-                <div key={message.id} className="flex gap-3">
+                <div
+                  key={message.id}
+                  className="flex gap-3"
+                >
                   <Avatar className="h-8 w-8">
-                    <AvatarImage
-                      src={message.sender.avatar}
-                      alt={message.sender.name}
-                    />
+                    <AvatarImage src={message.sender.avatarUrl ?? undefined} />
                     <AvatarFallback>
-                      {message.sender.name.charAt(0)}
+                      {message.sender.displayName.charAt(0)}
                     </AvatarFallback>
                   </Avatar>
                   <div className="flex flex-col flex-1">
                     <div className="flex items-center gap-2">
-                      <span className="font-medium">{message.sender.name}</span>
+                      <span className="font-medium">
+                        {message.sender.displayName}
+                      </span>
                       <Badge variant="outline" className="text-xs">
                         {message.sender.role}
                       </Badge>
                       <span className="text-xs text-muted-foreground ml-auto">
-                        {message.timestamp}
+                        {new Date(message.createdAt).toLocaleString()}
                       </span>
                     </div>
-                    <p className="text-sm mt-1">{message.content}</p>
+                    <p className="text-sm mt-1 whitespace-pre-line">
+                      {message.content}
+                    </p>
                     {message.topic && (
-                      <Badge variant="secondary" className="mt-1 w-fit">
+                      <Badge variant="secondary" className="mt-2 w-fit">
                         # {message.topic}
                       </Badge>
                     )}
-                    {message.attachments && message.attachments.length > 0 && (
-                      <div className="flex gap-2 mt-2">
-                        {message.attachments.map((attachment, index) => (
+                    {message.attachments.length > 0 && (
+                      <div className="flex flex-wrap gap-2 mt-2">
+                        {message.attachments.map((attachment) => (
                           <div
-                            key={index}
-                            className="flex items-center gap-1 bg-muted px-2 py-1 rounded text-xs"
+                            key={attachment.id}
+                            className="flex items-center gap-2 bg-muted px-2 py-1 rounded text-xs"
                           >
                             <PaperclipIcon className="h-3 w-3" />
-                            <span>{attachment.name}</span>
+                            <span className="max-w-[160px] truncate">
+                              {attachment.name}
+                            </span>
+                            {attachment.status !== "sent" && (
+                              <Badge
+                                variant={
+                                  attachment.status === "error"
+                                    ? "destructive"
+                                    : "outline"
+                                }
+                              >
+                                {attachment.status === "pending"
+                                  ? "Subiendo..."
+                                  : "Error"}
+                              </Badge>
+                            )}
                           </div>
                         ))}
                       </div>
+                    )}
+                    {message.status !== "sent" && (
+                      <Badge
+                        variant={
+                          message.status === "error"
+                            ? "destructive"
+                            : "outline"
+                        }
+                        className="mt-2 w-fit"
+                      >
+                        {message.status === "pending"
+                          ? "Enviando..."
+                          : "No se pudo entregar"}
+                      </Badge>
                     )}
                   </div>
                 </div>
               ))
             ) : (
               <div className="text-center py-8 text-muted-foreground">
-                No hay mensajes para mostrar en esta categoría.
+                No hay mensajes para mostrar.
               </div>
             )}
           </div>
         </ScrollArea>
-        <Separator className="my-4" />
-        <div className="flex flex-col gap-2">
+        <Separator />
+        <div className="flex flex-col gap-3">
           <Textarea
             placeholder="Escribe tu mensaje aquí..."
             value={messageText}
-            onChange={(e) => setMessageText(e.target.value)}
+            onChange={(event) => setMessageText(event.target.value)}
             onKeyDown={handleKeyDown}
             className="min-h-[80px] resize-none"
+            disabled={!selectedConversationId}
           />
-          <div className="flex justify-between">
-            <Button variant="outline" size="sm">
-              <PaperclipIcon className="h-4 w-4 mr-2" />
-              Adjuntar
-            </Button>
-            <Button onClick={handleSendMessage} disabled={!messageText.trim()}>
-              <SendIcon className="h-4 w-4 mr-2" />
-              Enviar
+          {pendingAttachments.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              {pendingAttachments.map((file, index) => (
+                <div
+                  key={`${file.name}-${index}`}
+                  className="flex items-center gap-2 rounded border px-2 py-1 text-xs"
+                >
+                  <PaperclipIcon className="h-3 w-3" />
+                  <span className="max-w-[160px] truncate">{file.name}</span>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-5 px-1"
+                    onClick={() => removeAttachment(index)}
+                  >
+                    ×
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                hidden
+                onChange={handleFileChange}
+              />
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={!selectedConversationId}
+              >
+                <PaperclipIcon className="h-4 w-4 mr-2" />
+                Adjuntar
+              </Button>
+            </div>
+            <Button
+              onClick={() => void handleSendMessage()}
+              disabled={
+                !messageText.trim() || !selectedConversationId || sending
+              }
+            >
+              {sending ? (
+                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+              ) : (
+                <SendIcon className="h-4 w-4 mr-2" />
+              )}
+              {sending ? "Enviando" : "Enviar"}
             </Button>
           </div>
         </div>
@@ -210,89 +416,5 @@ const MessagingSystem: React.FC<MessagingSystemProps> = ({
     </Card>
   );
 };
-
-// Default mock data
-const defaultCurrentUser = {
-  name: "Juan Pérez",
-  role: "Comprador",
-  avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Juan",
-};
-
-const defaultTopics = [
-  "Documentos",
-  "Tasación",
-  "Aprobación",
-  "Cierre",
-  "General",
-];
-
-const defaultMessages: Message[] = [
-  {
-    id: "1",
-    sender: {
-      name: "María López",
-      role: "Agente",
-      avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Maria",
-    },
-    content:
-      "Hola Juan, necesito que subas los documentos de ingresos actualizados para continuar con el proceso de aprobación.",
-    timestamp: "Hoy, 10:30 AM",
-    topic: "Documentos",
-  },
-  {
-    id: "2",
-    sender: {
-      name: "Carlos Rodríguez",
-      role: "Prestamista",
-      avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Carlos",
-    },
-    content:
-      "La tasación está programada para el próximo martes a las 2:00 PM. Por favor asegúrate de estar presente.",
-    timestamp: "Ayer, 3:45 PM",
-    topic: "Tasación",
-    attachments: [
-      {
-        name: "Detalles_Tasacion.pdf",
-        type: "pdf",
-        url: "#",
-      },
-    ],
-  },
-  {
-    id: "3",
-    sender: {
-      name: "Juan Pérez",
-      role: "Comprador",
-      avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Juan",
-    },
-    content: "Ya subí los documentos solicitados. ¿Hay algo más que necesiten?",
-    timestamp: "Ayer, 4:20 PM",
-    topic: "Documentos",
-  },
-  {
-    id: "4",
-    sender: {
-      name: "Ana Martínez",
-      role: "Procesador",
-      avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Ana",
-    },
-    content:
-      "Hemos recibido tus documentos y están siendo revisados. Te notificaremos cuando estén aprobados.",
-    timestamp: "Ayer, 5:15 PM",
-    topic: "Aprobación",
-  },
-  {
-    id: "5",
-    sender: {
-      name: "María López",
-      role: "Agente",
-      avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Maria",
-    },
-    content:
-      "Recuerda que necesitamos los estados de cuenta bancarios de los últimos 3 meses.",
-    timestamp: "Hoy, 9:00 AM",
-    topic: "Documentos",
-  },
-];
 
 export default MessagingSystem;
