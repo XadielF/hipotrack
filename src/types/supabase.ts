@@ -1,273 +1,86 @@
-export type Json =
-  | string
-  | number
-  | boolean
-  | null
-  | { [key: string]: Json | undefined }
-  | Json[];
+export type ProfileRow = {
+  id: string
+  full_name: string | null
+  avatar_url: string | null
+  role: string | null
+  notification_count: number | null
+}
 
-export type DocumentStatus =
-  | "draft"
-  | "pending_upload"
-  | "uploaded"
-  | "pending_review"
-  | "approved"
-  | "rejected"
-  | "archived";
+export type LoanProgressRow = {
+  id: string
+  loan_id: string
+  status: string | null
+  current_stage_id: string | null
+  current_stage_name: string | null
+  progress_percentage: number | null
+  pending_tasks: number | null
+  agent_name: string | null
+  lender_name: string | null
+  processor_name: string | null
+  loan_amount: number | null
+  down_payment: number | null
+  total_cost: number | null
+  monthly_payment: number | null
+}
 
-export type DocumentStage =
-  | "pre_approval"
-  | "appraisal"
-  | "underwriting"
-  | "closing"
-  | "funded"
-  | "other";
+export type TimelineTaskRow = {
+  id: string
+  name: string
+  completed: boolean | null
+  deadline: string | null
+}
 
-export type DocumentAccessLevel = "owner" | "editor" | "viewer" | "auditor";
+export type TimelineStageRow = {
+  id: string
+  loan_id: string
+  name: string
+  status: "completed" | "in-progress" | "pending"
+  description: string | null
+  tasks: TimelineTaskRow[] | null
+  position: number | null
+}
 
-export type VirusScanStatus =
-  | "pending"
-  | "queued"
-  | "scanning"
-  | "clean"
-  | "infected"
-  | "failed";
+export type CostItemRow = {
+  id: string
+  loan_id: string
+  category: "closing" | "tax" | "insurance" | "fee"
+  name: string
+  amount: number
+  description: string | null
+  is_paid: boolean | null
+}
 
-export type DocumentAuditAction =
-  | "created"
-  | "uploaded"
-  | "viewed"
-  | "downloaded"
-  | "deleted"
-  | "status_changed"
-  | "permission_updated"
-  | "virus_scan_requested"
-  | "virus_scan_completed";
+export type CostSummaryRow = {
+  loan_id: string
+  loan_amount: number | null
+  down_payment: number | null
+  total_cost: number | null
+  monthly_payment: number | null
+}
 
-export type StorageBucketId = "documents" | "secure-documents";
-
-export interface Database {
+export type Database = {
   public: {
     Tables: {
-      documents: {
-        Row: {
-          id: string;
-          applicant_id: string | null;
-          bucket_id: StorageBucketId;
-          storage_path: string;
-          display_name: string;
-          file_name: string;
-          mime_type: string | null;
-          size_bytes: number | null;
-          status: DocumentStatus;
-          stage: DocumentStage | null;
-          version: number;
-          is_required: boolean;
-          is_secure: boolean;
-          uploaded_by: string | null;
-          uploaded_by_email: string | null;
-          uploaded_at: string;
-          updated_at: string;
-          metadata: Json | null;
-          virus_scan_status: VirusScanStatus;
-          review_notes: string | null;
-          retention_date: string | null;
-        };
-        Insert: {
-          id?: string;
-          applicant_id?: string | null;
-          bucket_id: StorageBucketId;
-          storage_path: string;
-          display_name: string;
-          file_name: string;
-          mime_type?: string | null;
-          size_bytes?: number | null;
-          status?: DocumentStatus;
-          stage?: DocumentStage | null;
-          version?: number;
-          is_required?: boolean;
-          is_secure?: boolean;
-          uploaded_by?: string | null;
-          uploaded_by_email?: string | null;
-          uploaded_at?: string;
-          updated_at?: string;
-          metadata?: Json | null;
-          virus_scan_status?: VirusScanStatus;
-          review_notes?: string | null;
-          retention_date?: string | null;
-        };
-        Update: {
-          id?: string;
-          applicant_id?: string | null;
-          bucket_id?: StorageBucketId;
-          storage_path?: string;
-          display_name?: string;
-          file_name?: string;
-          mime_type?: string | null;
-          size_bytes?: number | null;
-          status?: DocumentStatus;
-          stage?: DocumentStage | null;
-          version?: number;
-          is_required?: boolean;
-          is_secure?: boolean;
-          uploaded_by?: string | null;
-          uploaded_by_email?: string | null;
-          uploaded_at?: string;
-          updated_at?: string;
-          metadata?: Json | null;
-          virus_scan_status?: VirusScanStatus;
-          review_notes?: string | null;
-          retention_date?: string | null;
-        };
-        Relationships: [];
-      };
-      document_permissions: {
-        Row: {
-          id: string;
-          document_id: string;
-          principal_id: string;
-          principal_type: "user" | "group" | "role";
-          access_level: DocumentAccessLevel;
-          can_view: boolean;
-          can_download: boolean;
-          can_delete: boolean;
-          can_upload_new_version: boolean;
-          created_at: string;
-          created_by: string | null;
-          revoked_at: string | null;
-          metadata: Json | null;
-        };
-        Insert: {
-          id?: string;
-          document_id: string;
-          principal_id: string;
-          principal_type?: "user" | "group" | "role";
-          access_level?: DocumentAccessLevel;
-          can_view?: boolean;
-          can_download?: boolean;
-          can_delete?: boolean;
-          can_upload_new_version?: boolean;
-          created_at?: string;
-          created_by?: string | null;
-          revoked_at?: string | null;
-          metadata?: Json | null;
-        };
-        Update: {
-          id?: string;
-          document_id?: string;
-          principal_id?: string;
-          principal_type?: "user" | "group" | "role";
-          access_level?: DocumentAccessLevel;
-          can_view?: boolean;
-          can_download?: boolean;
-          can_delete?: boolean;
-          can_upload_new_version?: boolean;
-          created_at?: string;
-          created_by?: string | null;
-          revoked_at?: string | null;
-          metadata?: Json | null;
-        };
-        Relationships: [
-          {
-            foreignKeyName: "document_permissions_document_id_fkey";
-            columns: ["document_id"];
-            isOneToOne: false;
-            referencedRelation: "documents";
-            referencedColumns: ["id"];
-          }
-        ];
-      };
-      document_audit_events: {
-        Row: {
-          id: string;
-          document_id: string;
-          action: DocumentAuditAction;
-          actor_id: string | null;
-          actor_email: string | null;
-          actor_role: string | null;
-          context: Json | null;
-          created_at: string;
-          request_id: string | null;
-        };
-        Insert: {
-          id?: string;
-          document_id: string;
-          action: DocumentAuditAction;
-          actor_id?: string | null;
-          actor_email?: string | null;
-          actor_role?: string | null;
-          context?: Json | null;
-          created_at?: string;
-          request_id?: string | null;
-        };
-        Update: {
-          id?: string;
-          document_id?: string;
-          action?: DocumentAuditAction;
-          actor_id?: string | null;
-          actor_email?: string | null;
-          actor_role?: string | null;
-          context?: Json | null;
-          created_at?: string;
-          request_id?: string | null;
-        };
-        Relationships: [
-          {
-            foreignKeyName: "document_audit_events_document_id_fkey";
-            columns: ["document_id"];
-            isOneToOne: false;
-            referencedRelation: "documents";
-            referencedColumns: ["id"];
-          }
-        ];
-      };
-    };
-    Views: {};
-    Functions: {
-      refresh_document_scan_status: {
-        Args: {
-          document_id: string;
-        };
-        Returns: {
-          document_id: string;
-          status: DocumentStatus | null;
-          virus_scan_status: VirusScanStatus | null;
-          details: Json | null;
-        };
-      };
-    };
-    Enums: {
-      document_status: DocumentStatus;
-      document_stage: DocumentStage;
-      virus_scan_status: VirusScanStatus;
-      document_access_level: DocumentAccessLevel;
-      document_audit_action: DocumentAuditAction;
-    };
-    CompositeTypes: {};
-  };
-  storage: {
-    Tables: {
-      buckets: {
-        Row: {
-          id: StorageBucketId;
-          name: StorageBucketId;
-        };
-      };
-      objects: {
-        Row: {
-          id: string;
-          bucket_id: StorageBucketId;
-          name: string;
-          owner: string | null;
-          metadata: Json | null;
-          created_at: string;
-          updated_at: string;
-          last_accessed_at: string | null;
-        };
-      };
-    };
-    Functions: {};
-    Enums: {};
-    CompositeTypes: {};
-  };
+      profiles: {
+        Row: ProfileRow
+      }
+      loan_progress: {
+        Row: LoanProgressRow
+      }
+      loan_timeline_stages: {
+        Row: TimelineStageRow
+      }
+      loan_cost_items: {
+        Row: CostItemRow
+      }
+    }
+    Views: {
+      loan_cost_summary: {
+        Row: CostSummaryRow
+      }
+    }
+    Functions: Record<string, never>
+    Enums: Record<string, never>
+    CompositeTypes: Record<string, never>
+  }
 }
