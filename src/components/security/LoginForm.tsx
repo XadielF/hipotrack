@@ -57,6 +57,15 @@ const LoginForm: React.FC<LoginFormProps> = ({ onSuccess }) => {
     return 'Strong';
   };
 
+  const getStrengthWidth = (strength: number) => {
+    const widthPercent = (strength / 5) * 100;
+    if (widthPercent <= 20) return 'w-1/5';
+    if (widthPercent <= 40) return 'w-2/5';
+    if (widthPercent <= 60) return 'w-3/5';
+    if (widthPercent <= 80) return 'w-4/5';
+    return 'w-full';
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -170,10 +179,9 @@ const LoginForm: React.FC<LoginFormProps> = ({ onSuccess }) => {
                   {formData.password && (
                     <div className="mt-2">
                       <div className="flex items-center gap-2 mb-1">
-                        <div className="flex-1 bg-gray-200 rounded-full h-2">
+                        <div className="flex-1 bg-gray-200 rounded-full h-2 overflow-hidden">
                           <div 
-                            className={`h-2 rounded-full transition-all ${getStrengthColor(strength)}`}
-                            style={{ width: `${(strength / 5) * 100}%` }}
+                            className={`h-2 rounded-full transition-all ${getStrengthColor(strength)} ${getStrengthWidth(strength)}`}
                           />
                         </div>
                         <span className="text-xs text-gray-600">

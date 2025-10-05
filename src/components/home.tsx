@@ -1,17 +1,8 @@
 import React from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import {
-  Bell,
-  MessageSquare,
-  FileText,
-  Home,
-  Settings,
-  User,
-  ChevronRight,
-} from "lucide-react";
+import { ChevronRight } from "lucide-react";
 import MortgageTimeline from "./MortgageTimeline";
 import DocumentManager from "./DocumentManager";
 import MessagingSystem from "./MessagingSystem";
@@ -39,101 +30,7 @@ const HomePage = () => {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50">
-      {/* Header */}
-      <header className="sticky top-0 z-10 bg-white border-b border-slate-200 shadow-sm">
-        <div className="container flex items-center justify-between h-16 px-4 mx-auto">
-          <div className="flex items-center space-x-4">
-            <h1 className="text-xl font-bold text-blue-600">Hipotrack</h1>
-          </div>
-
-          <div className="flex items-center space-x-4">
-            <Button variant="ghost" size="icon" className="relative">
-              <Bell className="w-5 h-5" />
-              {user.notifications > 0 && (
-                <span className="absolute top-0 right-0 w-4 h-4 text-xs text-white bg-red-500 rounded-full">
-                  {user.notifications}
-                </span>
-              )}
-            </Button>
-
-            <div className="flex items-center space-x-2">
-              <Avatar>
-                <AvatarImage src={user.avatar} alt={user.name} />
-                <AvatarFallback>{user.name.charAt(0)}</AvatarFallback>
-              </Avatar>
-              <div className="hidden text-sm md:block">
-                <p className="font-medium">{user.name}</p>
-                <p className="text-xs text-slate-500 capitalize">{user.role}</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </header>
-
-      {/* Main Content */}
-      <div className="container px-4 py-6 mx-auto">
-        <div className="grid grid-cols-12 gap-6">
-          {/* Sidebar */}
-          <div className="col-span-12 md:col-span-3 lg:col-span-2">
-            <div className="sticky top-20">
-              <nav className="space-y-1">
-                <Button
-                  variant="ghost"
-                  className="w-full justify-start"
-                  asChild
-                >
-                  <div className="flex items-center space-x-2 text-blue-600">
-                    <Home className="w-5 h-5" />
-                    <span>Dashboard</span>
-                  </div>
-                </Button>
-                <Button
-                  variant="ghost"
-                  className="w-full justify-start"
-                  asChild
-                >
-                  <div className="flex items-center space-x-2">
-                    <FileText className="w-5 h-5" />
-                    <span>Documents</span>
-                  </div>
-                </Button>
-                <Button
-                  variant="ghost"
-                  className="w-full justify-start"
-                  asChild
-                >
-                  <div className="flex items-center space-x-2">
-                    <MessageSquare className="w-5 h-5" />
-                    <span>Messages</span>
-                  </div>
-                </Button>
-                <Button
-                  variant="ghost"
-                  className="w-full justify-start"
-                  asChild
-                >
-                  <div className="flex items-center space-x-2">
-                    <User className="w-5 h-5" />
-                    <span>Profile</span>
-                  </div>
-                </Button>
-                <Button
-                  variant="ghost"
-                  className="w-full justify-start"
-                  asChild
-                >
-                  <div className="flex items-center space-x-2">
-                    <Settings className="w-5 h-5" />
-                    <span>Settings</span>
-                  </div>
-                </Button>
-              </nav>
-            </div>
-          </div>
-
-          {/* Main Content Area */}
-          <div className="col-span-12 md:col-span-9 lg:col-span-10">
+    <div>
             {/* Welcome Card */}
             <Card className="mb-6 bg-gradient-to-r from-blue-600 to-blue-800 text-white">
               <CardContent className="p-6">
@@ -207,9 +104,6 @@ const HomePage = () => {
                 </Card>
               </TabsContent>
             </Tabs>
-          </div>
-        </div>
-      </div>
     </div>
   );
 };
